@@ -1,3 +1,4 @@
+
 "use client"; // Make it a client component
 
 import { RegisterForm } from "@/components/forms/RegisterForm";
@@ -37,10 +38,10 @@ export default function RegisterPage() {
       <div className="grid md:grid-cols-2 gap-8 items-center max-w-4xl w-full">
         <div className="hidden md:flex justify-center order-last md:order-first">
            <Image
-            src="https://placehold.co/400x550.png"
+            src="https://images.unsplash.com/photo-1601074231509-dce351c05199?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHx1bmRlciUyMGNvbnN0cnVjdGlvbnxlbnwwfHx8fDE3NDg0MjcyODl8MA&ixlib=rb-4.1.0&q=80&w=1080"
             alt="Registration illustration"
             width={400}
-            height={550}
+            height={500}
             className="rounded-lg shadow-xl object-cover"
             data-ai-hint="construction team planning"
           />
@@ -50,3 +51,4 @@ export default function RegisterPage() {
     </div>
   );
 }
+
