@@ -26,7 +26,7 @@ import type { UserProfile } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { db } from "@/lib/firebase"; // Using new mock db
+import { db } from "@/lib/firebase"; 
 
 const labourProfileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -52,7 +52,7 @@ export function LabourProfileForm() {
 
   const form = useForm<LabourProfileFormValues>({
     resolver: zodResolver(labourProfileFormSchema),
-    defaultValues: {
+    defaultValues: { // These are used for the initial render before userData might be available
       name: "",
       phone: "",
       roleType: "",
@@ -65,25 +65,35 @@ export function LabourProfileForm() {
   });
 
   useEffect(() => {
+    console.log("[LabourProfileForm] useEffect triggered. Current userData:", userData ? JSON.parse(JSON.stringify(userData)) : userData);
     if (userData) {
-      console.log("[LabourProfileForm] useEffect updating form with userData:", JSON.parse(JSON.stringify(userData)));
-      form.reset({
+      console.log("[LabourProfileForm] useEffect updating form with userData contents:", JSON.parse(JSON.stringify(userData)));
+      const resetValues = {
         name: userData.name || "",
         phone: userData.phone || "",
         roleType: userData.roleType || "",
         skills: userData.skills || [],
         city: userData.city || "",
         availability: userData.availability || false,
-        currentWorkSites: userData.currentWorkSites?.join(", ") || "",
-        pastWorkSites: userData.pastWorkSites?.join(", ") || "",
-      });
+        currentWorkSites: Array.isArray(userData.currentWorkSites) ? userData.currentWorkSites.join(", ") : userData.currentWorkSites || "",
+        pastWorkSites: Array.isArray(userData.pastWorkSites) ? userData.pastWorkSites.join(", ") : userData.pastWorkSites || "",
+      };
+      console.log("[LabourProfileForm] Resetting form with values:", JSON.parse(JSON.stringify(resetValues)));
+      form.reset(resetValues);
+    } else {
+      console.log("[LabourProfileForm] useEffect triggered but userData is null/undefined. Form will use defaultValues or previously set values if not explicitly reset to empty.");
+      // To ensure fields are cleared if userData becomes null after being populated, you might explicitly reset to defaults:
+      // form.reset({ name: "", phone: "", roleType: "", skills: [], city: "", availability: false, currentWorkSites: "", pastWorkSites: "" });
     }
-  }, [userData, form]);
+  }, [userData, form]); // form.reset is stable, dependency is primarily on userData
 
   async function onSubmit(data: LabourProfileFormValues) {
-    if (!userData) return;
+    if (!userData?.uid) {
+        toast({ title: "Error", description: "User not found. Cannot update profile.", variant: "destructive"});
+        return;
+    }
     setIsLoading(true);
-    console.log("[LabourProfileForm] Submitting profile data:", JSON.parse(JSON.stringify(data)));
+    console.log("[LabourProfileForm] Submitting form data:", JSON.parse(JSON.stringify(data)));
     console.log("[LabourProfileForm] Submitting city:", data.city);
 
 
@@ -96,7 +106,7 @@ export function LabourProfileForm() {
       availability: data.availability,
       currentWorkSites: data.currentWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
       pastWorkSites: data.pastWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
-      updatedAt: new Date().toISOString(),
+      // updatedAt will be handled by the mock db
     };
     
     console.log("[LabourProfileForm] profileDataToUpdate payload:", JSON.parse(JSON.stringify(profileDataToUpdate)));
@@ -104,7 +114,7 @@ export function LabourProfileForm() {
 
     try {
       await db.collection("users").doc(userData.uid).update(profileDataToUpdate);
-      await refreshUserData();
+      await refreshUserData(); // This fetches the latest userData and should trigger the useEffect
       toast({
         title: "Profile Updated",
         description: "Your profile information has been successfully updated.",
@@ -162,7 +172,7 @@ export function LabourProfileForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Primary Role (e.g., Electrician, Mason)</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                   <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select your primary role" />
@@ -234,7 +244,7 @@ export function LabourProfileForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>City</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                   <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select your city" />
@@ -308,3 +318,4 @@ export function LabourProfileForm() {
     </Card>
   );
 }
+
