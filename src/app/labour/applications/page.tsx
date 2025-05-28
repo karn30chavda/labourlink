@@ -4,7 +4,7 @@
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; // Added CardFooter
 import { useAuth } from "@/hooks/use-auth";
 import type { Application, Job } from "@/types"; // Assuming Application type exists
 import { useEffect, useState } from "react";
@@ -164,3 +164,4 @@ export default function LabourApplicationsPage() {
     </AuthGuard>
   );
 }
+
