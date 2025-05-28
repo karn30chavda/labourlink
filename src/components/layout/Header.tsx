@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, LogIn, LogOut, Menu, X, Sun, Moon } from "lucide-react"; 
+import { Building2, LogIn, LogOut, Menu, X } from "lucide-react"; 
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/hooks/use-auth";
@@ -42,7 +42,7 @@ export function Header() {
   const userNavItems = userRole && userData ? siteConfig.userNav[userRole] : [];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 print:hidden">
       <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
         {/* Logo and Site Name */}
         <Link href="/" className="flex items-center space-x-2 ml-2">
@@ -94,6 +94,7 @@ export function Header() {
                   {userNavItems.map(item => (
                     <DropdownMenuItem key={item.href} asChild>
                       <Link href={item.href}>
+                        {item.icon && React.createElement(item.icon, { className: "mr-2 h-4 w-4"})}
                         {item.title}
                       </Link>
                     </DropdownMenuItem>
@@ -126,7 +127,7 @@ export function Header() {
 
       {/* Mobile Menu Dropdown (conditionally rendered) */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-16 inset-x-0 z-40 bg-background supports-[backdrop-filter]:bg-background/90 border-b border-border/40 p-4 shadow-md">
+        <div className="md:hidden absolute top-16 inset-x-0 z-40 bg-background border-b border-border/40 p-4 shadow-md">
           <nav className="flex flex-col space-y-1">
             {siteConfig.mainNav.map((item) => (
               <Link
@@ -142,7 +143,6 @@ export function Header() {
             <div className="my-2 border-t border-border/60"></div>
 
             {loading ? (
-                // Placeholder or skeleton for loading state in mobile menu if needed
                 <Skeleton className="h-8 w-full rounded-md my-1" /> 
             ) : user ? ( 
               <>
@@ -152,13 +152,14 @@ export function Header() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="block rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+                    className="flex items-center rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
+                    {item.icon && React.createElement(item.icon, { className: "mr-2 h-4 w-4"})}
                     {item.title}
                   </Link>
                 ))}
-                <div className="my-2 border-t border-border/60"></div>
+                {(user && userNavItems.length > 0) && <div className="my-2 border-t border-border/60"></div>}
                  <button
                   onClick={() => { logout(); setIsMobileMenuOpen(false); }}
                   className="flex items-center w-full text-left rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
@@ -185,4 +186,3 @@ export function Header() {
     </header>
   );
 }
-

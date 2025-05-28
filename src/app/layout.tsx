@@ -7,7 +7,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { siteConfig } from "@/config/site";
-import { FloatingThemeToggle } from "@/components/layout/FloatingThemeToggle"; // Added import
+import { FloatingThemeToggle } from "@/components/layout/FloatingThemeToggle";
+import { ScrollToTopButton } from "@/components/layout/ScrollToTopButton"; // Added import
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,7 +46,8 @@ export default function RootLayout({
             <Footer />
           </div>
           <Toaster />
-          <FloatingThemeToggle /> {/* Added component */}
+          <FloatingThemeToggle />
+          <ScrollToTopButton /> {/* Added component */}
         </AuthProvider>
       </body>
     </html>
