@@ -4,7 +4,7 @@
 import type { UserProfile } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Link from "next/link"; 
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MapPin, Briefcase, Phone, CheckCircle, XCircle, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -12,18 +12,22 @@ import { useToast } from "@/hooks/use-toast";
 
 
 interface LabourCardProps {
-  labour: UserProfile; 
+  labour: UserProfile;
 }
 
 export function LabourCard({ labour }: LabourCardProps) {
   const { toast } = useToast();
+  // Log the labour object to inspect its properties, especially profilePhotoUrl
+  console.log("[LabourCard] Rendering for:", JSON.parse(JSON.stringify(labour)));
+
   const getInitials = (name?: string) => {
-    if (!name) return "NN";
-    const names = name.split(' ');
+    if (!name || name.trim() === "") return "NN";
+    const names = name.trim().split(' ').filter(n => n); // Filter out empty strings from multiple spaces
+    if (names.length === 0) return "NN";
     if (names.length > 1 && names[0] && names[names.length -1]) {
       return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
+    return names[0].substring(0, 2).toUpperCase();
   }
 
   // Placeholder rating
@@ -34,12 +38,13 @@ export function LabourCard({ labour }: LabourCardProps) {
     <Card className="w-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
       <CardHeader className="pb-3 flex flex-row items-center space-x-4">
         <Avatar className="h-16 w-16 border-2 border-primary">
-          <AvatarImage src={labour.profilePhotoUrl || undefined} alt={labour.name} data-ai-hint="worker portrait" />
+          {/* Ensure src is undefined if profilePhotoUrl is null, empty, or undefined */}
+          <AvatarImage src={labour.profilePhotoUrl || undefined} alt={labour.name || "Labour"} data-ai-hint="worker portrait" />
           <AvatarFallback>{getInitials(labour.name)}</AvatarFallback>
         </Avatar>
         <div>
           <CardTitle className="text-xl font-semibold text-primary">
-            {labour.name}
+            {labour.name || "Unnamed Labour"}
           </CardTitle>
           <CardDescription className="text-sm text-muted-foreground pt-1">
             {labour.roleType || "Skilled Labour"}
@@ -57,7 +62,7 @@ export function LabourCard({ labour }: LabourCardProps) {
         </div>
         {labour.skills && labour.skills.length > 0 ? (
           <div className="flex flex-wrap gap-2 pl-6">
-            {labour.skills.slice(0, 5).map(skill => ( 
+            {labour.skills.slice(0, 5).map(skill => (
               <Badge key={skill} variant="secondary">{skill}</Badge>
             ))}
             {labour.skills.length > 5 && <Badge variant="outline">+{labour.skills.length - 5} more</Badge>}
@@ -65,7 +70,7 @@ export function LabourCard({ labour }: LabourCardProps) {
         ) : (
           <p className="pl-6 text-muted-foreground">No skills listed.</p>
         )}
-        
+
         <div className="flex items-center pt-2">
           {labour.availability ? (
             <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
@@ -87,4 +92,3 @@ export function LabourCard({ labour }: LabourCardProps) {
     </Card>
   );
 }
-
