@@ -29,30 +29,25 @@ console.log("--- End of Firebase Environment Variable Check ---");
 
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAxvtZdnBU5inuNBOtw3_8j0ywQoLw11G0",
-  authDomain: "labourlink-3aelc.firebaseapp.com",
-  projectId: "labourlink-3aelc",
-  storageBucket: "labourlink-3aelc.firebasestorage.app",
-  messagingSenderId: "476102096775",
-  appId: "1:476102096775:web:8a53a4f2a4f7e3d7d40522"
+  apiKey: apiKeyFromEnv,
+  authDomain: authDomainFromEnv,
+  projectId: projectIdFromEnv,
+  storageBucket: storageBucketFromEnv,
+  messagingSenderId: messagingSenderIdFromEnv,
+  appId: appIdFromEnv,
 };
 // Conditional initialization to prevent re-initialization errors and provide clear feedback
 let app;
 let db;
-let auth; // This will hold the auth instance
+let authInstance; // Renamed to avoid conflict with the auth export
 let storage;
 
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
   console.error(
-    "CRITICAL FIREBASE CONFIG ERROR: Firebase apiKey or projectId is missing from environment variables." +
+    "CRITICAL FIREBASE CONFIG ERROR: Firebase apiKey or projectId is missing. These values are typically read from your .env.local file (e.g., NEXT_PUBLIC_FIREBASE_API_KEY)." +
     " Firebase will NOT be initialized. Please ensure all NEXT_PUBLIC_FIREBASE_... variables are correctly set in your .env.local file," +
     " and that you have restarted your development server after making changes to .env.local."
   );
-  // To prevent the app from completely crashing immediately due to undefined Firebase services,
-  // you might assign placeholder/dummy objects here, though this will lead to runtime errors later
-  // when these services are actually used. Forcing a hard error or a clear non-operational state
-  // is often better for debugging.
-  // For now, we'll let the subsequent getAuth() etc. fail if app isn't initialized.
 }
 
 if (!getApps().length) {
@@ -62,7 +57,7 @@ if (!getApps().length) {
       console.log("Attempting to initialize Firebase app with config:", firebaseConfig);
       app = initializeApp(firebaseConfig);
       db = getFirestore(app);
-      auth = getAuth(app); // Initialize the auth service
+      authInstance = getAuth(app); // Initialize the auth service
       storage = getStorage(app);
       console.log("Firebase initialized successfully.");
     } catch (error) {
@@ -70,23 +65,23 @@ if (!getApps().length) {
       console.error("This usually means the provided Firebase config values (API Key, Project ID, etc.) are incorrect or the Firebase project is not set up properly for this app.");
       // Re-throw to make the error very visible in the server logs and potentially crash the server start,
       // which is appropriate if Firebase is critical.
-      throw error;
+      // throw error; // You might want to uncomment this in a production build script
     }
   } else {
     console.error("Firebase NOT initialized due to missing apiKey or projectId in the resolved config. Check previous logs for environment variable values.");
-    // If Firebase is absolutely critical, you might want to throw an error here to halt execution.
-    // throw new Error("Firebase cannot be initialized - critical configuration missing.");
   }
 } else {
   app = getApp(); // Get the already initialized app
   db = getFirestore(app);
-  auth = getAuth(app); // Get the auth service from the existing app
+  authInstance = getAuth(app); // Get the auth service from the existing app
   storage = getStorage(app);
   console.log("Firebase app was already initialized. Using existing app instance.");
 }
 
 // Export the initialized services (or undefined if initialization failed and wasn't forced to crash)
-export { app, db, auth, storage };
+// Renaming exported 'auth' to 'authService' to avoid potential naming conflicts if 'auth' is used as a variable elsewhere.
+// However, standard practice is to export it as 'auth'. I'll stick to 'auth' for now as it's used that way in AuthContext.
+export { app, db, authInstance as auth, storage };
 
 
 // Firestore mock functions for UI development - these should be removed or clearly separated once real Firebase is working
@@ -131,7 +126,7 @@ export const mockFirestore = {
           ]};
         }
          if (collectionName === 'jobs' && field === 'status' && value !== 'deleted') {
-            if (value === 'customerUID' || field === 'customerId'){ 
+            if (value === 'customerUID' || field === 'customerId'){
                  return { empty: false, docs: [
                     { id: 'jobCust1', data: () => ({ id: 'jobCust1', title: 'Customer Job 1 (Open)', customerId: 'customerUID', requiredSkill: 'Plumbing', location: 'MockCity', duration: '1 week', status: 'open', createdAt: new Date(Date.now() - 86400000).toISOString() }) },
                     { id: 'jobCust2', data: () => ({ id: 'jobCust2', title: 'Customer Job 2 (Pending)', customerId: 'customerUID', requiredSkill: 'Electrical', location: 'MockCity', duration: '3 days', status: 'pending_approval', createdAt: new Date().toISOString() }) },
