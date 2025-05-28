@@ -64,7 +64,7 @@ export function Header() {
   }
 
   const userRole = userData?.role;
-  const userNavItems = userRole ? siteConfig.userNav[userRole] : [];
+  const userNavItems = userRole && userData ? siteConfig.userNav[userRole] : [];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -102,22 +102,22 @@ export function Header() {
           <div className="flex items-center space-x-2 ml-2">
             {loading ? (
               <Skeleton className="h-9 w-24 rounded-md" />
-            ) : user && userData ? (
+            ) : user ? ( // Changed condition: if Firebase user exists, show dropdown
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={userData.profilePhotoUrl || undefined} alt={userData.name || "User"} data-ai-hint="user profile"/>
-                      <AvatarFallback>{getInitials(userData.name)}</AvatarFallback>
+                      <AvatarImage src={userData?.profilePhotoUrl || undefined} alt={userData?.name || "User"} data-ai-hint="user profile"/>
+                      <AvatarFallback>{getInitials(userData?.name)}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{userData.name}</p>
+                      <p className="text-sm font-medium leading-none">{userData?.name || "User"}</p>
                       <p className="text-xs leading-none text-muted-foreground">
-                        {userData.email}
+                        {userData?.email || user.email || "No email"}
                       </p>
                     </div>
                   </DropdownMenuLabel>
@@ -125,13 +125,11 @@ export function Header() {
                   {userNavItems.map(item => (
                     <DropdownMenuItem key={item.href} asChild>
                       <Link href={item.href}>
-                        {/* Specific icons can be added to siteConfig if needed */}
-                        {/* <LayoutDashboard className="mr-2 h-4 w-4" /> */}
                         {item.title}
                       </Link>
                     </DropdownMenuItem>
                   ))}
-                  <DropdownMenuSeparator />
+                  {(userData && userNavItems.length > 0) && <DropdownMenuSeparator />}
                   <DropdownMenuItem onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
@@ -185,11 +183,10 @@ export function Header() {
                 {item.title}
               </Link>
             ))}
-            {user && userData && userNavItems.length > 0 && (
+            {user && ( // If firebase user exists
               <>
-                <div className="my-2 border-t border-border/60"></div> {/* Simple separator */}
-                {/* <p className="px-3 pt-2 pb-1 text-xs font-semibold uppercase text-muted-foreground">My Account</p> */}
-                {userNavItems.map(item => (
+                <div className="my-2 border-t border-border/60"></div>
+                {userData && userNavItems.length > 0 && userNavItems.map(item => ( // Show user specific links if userData and items exist
                   <Link
                     key={item.href}
                     href={item.href}
@@ -199,9 +196,16 @@ export function Header() {
                     {item.title}
                   </Link>
                 ))}
+                <div className="my-2 border-t border-border/60"></div>
+                 <button // Changed to button for onClick logout
+                  onClick={() => { logout(); setIsMobileMenuOpen(false); }}
+                  className="block w-full text-left rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+                >
+                  Logout
+                </button>
               </>
             )}
-             {!user && !loading && (
+             {!user && !loading && ( // If no firebase user and not loading
               <>
                 <div className="my-2 border-t border-border/60"></div>
                 <Link
