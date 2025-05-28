@@ -108,9 +108,9 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       location: data.location,
       duration: data.duration,
       budget: data.budget || "",
-      status: 'pending_approval' as Job['status'], 
-      updatedAt: new Date().toISOString(), 
-      approvedByAdmin: false, 
+      status: 'open' as Job['status'], // Changed for immediate visibility
+      updatedAt: new Date().toISOString(),
+      approvedByAdmin: true, // Changed for immediate visibility
     };
     
     console.log("[JobPostForm] Submitting job. ID (if editing):", job?.id);
@@ -121,11 +121,11 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       if (isEditing && job?.id) {
         await db.collection("jobs").doc(job.id).update(jobDataPayload);
         console.log("[JobPostForm] Update call completed for job ID:", job.id);
-        toast({ title: "Job Updated", description: "Your job post has been updated and is pending re-approval." });
+        toast({ title: "Job Updated", description: "Your job post has been updated." });
       } else {
         const newJobRef = await db.collection("jobs").add({ ...jobDataPayload, createdAt: new Date().toISOString() });
         console.log("[JobPostForm] Add call completed. New job ID:", newJobRef.id);
-        toast({ title: "Job Posted", description: "Your job post has been submitted for approval." });
+        toast({ title: "Job Posted", description: "Your job post is now live." });
       }
       router.push("/customer/jobs");
     } catch (error: any) {
@@ -284,7 +284,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
             </div>
             <Button type="submit" className="w-full" disabled={isLoading || isAiGenerating}>
               {isLoading ? <Loader className="mr-2" size={16} /> : null}
-              {isEditing ? "Update Job Post" : "Submit Job Post for Approval"}
+              {isEditing ? "Update Job Post" : "Post Job"}
             </Button>
           </form>
         </Form>
@@ -292,5 +292,3 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     </Card>
   );
 }
-
-    
