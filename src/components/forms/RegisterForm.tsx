@@ -65,9 +65,9 @@ export function RegisterForm() {
       await register(data.name, data.email, data.password, data.role as UserRole);
       toast({
         title: "Registration Successful",
-        description: "Your account has been created. Please log in.",
+        description: "Welcome to LabourLink! Your account has been created.",
       });
-      router.push("/login"); // Or redirect to a role-specific onboarding
+      router.push("/"); // Redirect to homepage after successful registration
     } catch (error: any) {
       toast({
         title: "Registration Failed",
