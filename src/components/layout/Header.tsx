@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
 import { usePathname } from 'next/navigation';
+import React from "react";
 
 export function Header() {
   const { user, userData, loading, logout } = useAuth();
@@ -74,7 +75,7 @@ export function Header() {
             ) : user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                  <Button variant="ghost" className="relative h-9 w-9 rounded-full mr-2">
                     <Avatar className="h-9 w-9">
                       <AvatarImage src={userData?.profilePhotoUrl || undefined} alt={userData?.name || "User"} data-ai-hint="user profile"/>
                       <AvatarFallback>{getInitials(userData?.name)}</AvatarFallback>
