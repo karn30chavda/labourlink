@@ -115,7 +115,7 @@ export default function SearchLabourPage() {
                 <SelectValue placeholder="All Skills" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Skills</SelectItem>
+                {/* <SelectItem value="">All Skills</SelectItem> */} {/* Removed this line */}
                 {siteConfig.skills.map(skill => (
                   <SelectItem key={skill} value={skill}>{skill}</SelectItem>
                 ))}
@@ -129,7 +129,7 @@ export default function SearchLabourPage() {
                 <SelectValue placeholder="All Cities" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Cities</SelectItem>
+                {/* <SelectItem value="">All Cities</SelectItem> */} {/* Removed this line */}
                 {siteConfig.cities.map(city => (
                   <SelectItem key={city} value={city}>{city}</SelectItem>
                 ))}
