@@ -1,12 +1,17 @@
+
 "use client";
 
 import type { Job } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { MapPin, Briefcase, Clock, DollarSign, Eye } from "lucide-react";
+import { MapPin, Briefcase, Clock, DollarSign, Eye, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/hooks/use-auth"; // To check if user is labour and subscribed
+import { useAuth } from "@/hooks/use-auth"; 
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 interface JobCardProps {
   job: Job;
@@ -14,30 +19,49 @@ interface JobCardProps {
 
 export function JobCard({ job }: JobCardProps) {
   const { userData } = useAuth();
-  const isLabourSubscribed = userData?.role === 'labour' && userData.subscription?.status === 'active';
+  const { toast } = useToast();
+  const router = useRouter();
+  
+  const isLabour = userData?.role === 'labour';
+  const isSubscribed = isLabour && userData?.subscription?.status === 'active';
 
   const handleApply = () => {
-    // Placeholder for apply logic
-    // This would typically open a modal or redirect to an application page
-    // e.g. router.push(`/jobs/${job.id}/apply`);
-    if (!isLabourSubscribed && userData?.role === 'labour') {
-       alert("Please subscribe to apply for jobs."); // Replace with toast
-       // router.push('/labour/subscription');
+    if (!isLabour) {
+      // Should not happen if button is only shown to labour
+      toast({title: "Login as Labour", description: "Please login as a labour user to apply.", variant: "destructive"});
+      router.push('/login');
+      return;
+    }
+    if (!isSubscribed) {
+       toast({title: "Subscription Required", description: "Please subscribe to a plan to apply for jobs.", variant: "destructive", action: <Button onClick={() => router.push('/labour/subscription')}>View Plans</Button> });
        return;
     }
-    alert(`Applying for job: ${job.title}`); // Replace with toast
+    // Placeholder for actual apply logic
+    toast({title: "Applied (Mock)", description: `Successfully applied for job: ${job.title}`});
   };
+
+  const applyButton = (
+    <Button 
+      size="sm" 
+      onClick={handleApply} 
+      className="w-full sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground"
+      disabled={isLabour && !isSubscribed}
+    >
+      {isLabour && !isSubscribed && <ShieldAlert className="mr-2 h-4 w-4" />}
+      Apply Now
+    </Button>
+  );
 
   return (
     <Card className="w-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
           <CardTitle className="text-xl font-semibold text-primary group-hover:text-primary-dark transition-colors">
-            <Link href={`/jobs/${job.id}`} className="hover:underline">{job.title}</Link>
+            {/* In a real app, job.id would link to a detailed job page /jobs/{job.id} */}
+            <span className="hover:underline cursor-pointer" onClick={() => toast({title: "Info", description: "Detailed job page coming soon!"})}>{job.title}</span>
           </CardTitle>
           {job.status === 'open' && <Badge className="bg-green-500 text-white">Open</Badge>}
           {job.status === 'assigned' && <Badge variant="outline">Assigned</Badge>}
-          {/* Add other statuses as needed */}
         </div>
         <CardDescription className="text-sm text-muted-foreground pt-1">
           Posted by: {job.customerName || "A Customer"}
@@ -67,21 +91,28 @@ export function JobCard({ job }: JobCardProps) {
         </div>
       </CardContent>
       <CardFooter className="pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-2">
-        <Button variant="outline" size="sm" asChild>
-          <Link href={`/jobs/${job.id}`}>
-            <Eye className="mr-2 h-4 w-4" /> View Details
-          </Link>
+        <Button variant="outline" size="sm" onClick={() => toast({title: "Info", description: "Detailed job page coming soon!"})}>
+          <Eye className="mr-2 h-4 w-4" /> View Details
         </Button>
-        {userData?.role === 'labour' && job.status === 'open' && (
-          <Button 
-            size="sm" 
-            onClick={handleApply} 
-            className="w-full sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground"
-            disabled={!isLabourSubscribed && userData?.role === 'labour'}
-            title={!isLabourSubscribed && userData?.role === 'labour' ? "Subscription required to apply" : "Apply for this job"}
-          >
-            Apply Now
-          </Button>
+        {isLabour && (
+          isSubscribed ? (
+            applyButton
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* Span needed for Tooltip to work correctly with disabled button */}
+                  <span tabIndex={0}>{applyButton}</span> 
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Subscription required to apply for jobs.</p>
+                  <Button variant="link" size="sm" className="p-0 h-auto text-primary" asChild>
+                    <Link href="/labour/subscription">View Plans</Link>
+                  </Button>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
         )}
       </CardFooter>
     </Card>

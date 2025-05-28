@@ -11,12 +11,12 @@ import type { Job, JobPosting } from "@/types";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase"; 
 import Link from "next/link";
-import { AlertCircle, Briefcase, CheckCircle, Eye, FileText, Loader2 } from "lucide-react";
+import { AlertCircle, Briefcase, CheckCircle, Eye, FileText, Loader2, ShieldCheck, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const mockAppliedJobs: (Job & { applicationStatus: string; dateApplied: string })[] = [
-  { id: 'job1', title: 'Urgent Plumbing for New Condo', customerId: 'cust1', customerName: 'ABC Builders', requiredSkill: 'Plumbing', location: 'Downtown, MockCity', duration: '1 week', status: 'open', createdAt: new Date().toISOString(), applicationStatus: 'Pending', dateApplied: '2024-07-20' },
-  { id: 'job3', title: 'Electrical Rewiring Project', customerId: 'cust2', customerName: 'Home Renovations Ltd.', requiredSkill: 'Electrical', location: 'Suburb, MockCity', duration: '2 weeks', status: 'open', createdAt: new Date().toISOString(), applicationStatus: 'Shortlisted', dateApplied: '2024-07-18' },
+  { id: 'job1', title: 'Urgent Plumbing for New Condo', customerId: 'cust1', customerName: 'ABC Builders', requiredSkill: 'Plumbing', location: 'MockCity', duration: '1 week', status: 'open', createdAt: new Date().toISOString(), applicationStatus: 'Pending', dateApplied: '2024-07-20' },
+  { id: 'job3', title: 'Electrical Rewiring Project', customerId: 'cust2', customerName: 'Home Renovations Ltd.', requiredSkill: 'Electrical', location: 'MockCity', duration: '2 weeks', status: 'open', createdAt: new Date().toISOString(), applicationStatus: 'Shortlisted', dateApplied: '2024-07-18' },
 ];
 
 
@@ -26,28 +26,37 @@ export default function LabourDashboardPage() {
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [errorJobs, setErrorJobs] = useState<string | null>(null);
 
+  const isSubscribed = userData?.subscription?.status === 'active';
+
   useEffect(() => {
     if (userData && userData.role === 'labour' && userData.skills && userData.city) {
       const fetchJobs = async () => {
         try {
           setLoadingJobs(true);
+          // Only fetch jobs if subscribed, or adjust logic as needed
+          if (!isSubscribed) {
+            setErrorJobs("Please subscribe to view AI job suggestions.");
+            setRelevantJobs([]);
+            setLoadingJobs(false);
+            return;
+          }
+
           const jobsSnapshot = await db.collection("jobs").where("status", "==", "open").get();
           
           const allOpenJobs: JobPosting[] = jobsSnapshot.docs.map(doc => {
-            const jobData = doc.data() as Job; // Assuming Job type includes all needed fields for JobPosting
+            const jobData = doc.data() as Job; 
             return {
-              // id: doc.id, // if needed by JobPosting or for links
               title: jobData.title,
               description: jobData.description,
               requiredSkill: jobData.requiredSkill,
               location: jobData.location,
             };
-          }).filter(job => job.location === userData.city); // Pre-filter for AI
+          }).filter(job => job.location === userData.city); 
 
-          if (allOpenJobs.length > 0 && userData.skills) { // Ensure skills exist
+          if (allOpenJobs.length > 0 && userData.skills) { 
             const aiInput = {
-              laborSkills: userData.skills || [], // Ensure skills is an array
-              laborCity: userData.city || '', // Ensure city is a string
+              laborSkills: userData.skills || [], 
+              laborCity: userData.city || '', 
               jobPostings: allOpenJobs,
             };
             const result = await getRelevantJobNotifications(aiInput);
@@ -68,8 +77,12 @@ export default function LabourDashboardPage() {
     } else if (userData && (userData.role !== 'labour' || !userData.skills || !userData.city)) {
         setLoadingJobs(false);
         setErrorJobs("Please complete your profile (skills and city) to see job suggestions.");
+    } else if (userData && userData.role === 'labour' && !isSubscribed) {
+        setLoadingJobs(false);
+        setErrorJobs("Activate your subscription to see AI job suggestions and apply for jobs.");
+        setRelevantJobs([]);
     }
-  }, [userData]);
+  }, [userData, isSubscribed]);
 
   return (
     <AuthGuard>
@@ -85,7 +98,7 @@ export default function LabourDashboardPage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Applications</CardTitle>
@@ -104,7 +117,7 @@ export default function LabourDashboardPage() {
                 {userData?.availability ? <CheckCircle className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-red-500" />}
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${userData?.availability ? 'text-green-500' : 'text-red-500'}`}>
+                <div className={`text-2xl font-bold ${userData?.availability ? 'text-green-600' : 'text-red-600'}`}>
                   {userData?.availability ? 'Available' : 'Busy'}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -124,12 +137,30 @@ export default function LabourDashboardPage() {
                 </p>
               </CardContent>
             </Card>
+             <Card className={isSubscribed ? "bg-green-50 dark:bg-green-900/30 border-green-500" : "bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500"}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Subscription</CardTitle>
+                {isSubscribed ? <ShieldCheck className="h-4 w-4 text-green-500" /> : <CreditCard className="h-4 w-4 text-yellow-500" />}
+              </CardHeader>
+              <CardContent>
+                <div className={`text-xl font-bold ${isSubscribed ? 'text-green-600' : 'text-yellow-600'}`}>
+                  {isSubscribed ? 'Active' : 'Inactive'}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  <Link href="/labour/subscription" className="text-primary hover:underline">
+                    {isSubscribed ? 'Manage Subscription' : 'View Plans'}
+                  </Link>
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>AI Suggested Jobs For You</CardTitle>
-              <CardDescription>Top job matches based on your skills and location. Update your profile for better suggestions.</CardDescription>
+              <CardDescription>
+                {isSubscribed ? "Top job matches based on your skills and location. Update your profile for better suggestions." : "Subscribe to view AI job suggestions and apply for jobs."}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {loadingJobs && (
@@ -139,15 +170,16 @@ export default function LabourDashboardPage() {
                 </div>
               )}
               {errorJobs && !loadingJobs && (
-                <div className="text-red-500 flex items-center">
+                <div className="text-red-500 flex items-center p-4 bg-red-50 dark:bg-red-900/30 rounded-md">
                   <AlertCircle className="mr-2 h-5 w-5"/> {errorJobs}
                   {errorJobs.includes("profile") && <Button variant="link" asChild><Link href="/labour/profile">Update Profile</Link></Button>}
+                  {errorJobs.includes("subscription") && <Button variant="link" asChild><Link href="/labour/subscription">View Plans</Link></Button>}
                 </div>
               )}
-              {!loadingJobs && !errorJobs && relevantJobs.length === 0 && (
+              {!loadingJobs && !errorJobs && relevantJobs.length === 0 && isSubscribed && (
                 <p className="text-muted-foreground">No specific job suggestions for you right now. Try browsing all jobs or update your profile.</p>
               )}
-              {!loadingJobs && !errorJobs && relevantJobs.length > 0 && (
+              {!loadingJobs && !errorJobs && relevantJobs.length > 0 && isSubscribed && (
                 <ul className="space-y-4">
                   {relevantJobs.map((job, index) => (
                     <li key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
@@ -165,6 +197,15 @@ export default function LabourDashboardPage() {
                   ))}
                 </ul>
               )}
+               {!isSubscribed && !loadingJobs && (
+                 <div className="text-center py-8">
+                    <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-3"/>
+                    <p className="text-muted-foreground">Your AI job suggestions are waiting for you!</p>
+                    <Button asChild className="mt-3">
+                        <Link href="/labour/subscription">Activate Subscription</Link>
+                    </Button>
+                 </div>
+               )}
             </CardContent>
           </Card>
 

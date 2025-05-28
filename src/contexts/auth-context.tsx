@@ -1,13 +1,15 @@
 
+
 "use client";
 
 import React, { createContext, useState, useEffect, ReactNode } from "react";
-import { auth, db } from "@/lib/firebase"; // Using new mock from firebase.ts
+import { auth, db } from "@/lib/firebase"; 
 import type { UserProfile, UserRole, MockAuthUser, MockUserCredential } from "@/types";
+import { siteConfig } from "@/config/site";
 
 interface AuthContextType {
-  user: MockAuthUser | null; // Firebase auth user (now mock)
-  userData: UserProfile | null; // Additional user data from Firestore (now mock)
+  user: MockAuthUser | null; 
+  userData: UserProfile | null; 
   loading: boolean;
   isAdmin: boolean;
   isLabour: boolean;
@@ -30,15 +32,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserData(null);
       return;
     }
-    console.log("AuthContext: Fetching user data for mock user UID:", mockAuthUser.uid);
+    // console.log("AuthContext: Fetching user data for mock user UID:", mockAuthUser.uid);
     try {
-      const userDoc = await db.collection("users").doc(mockAuthUser.uid).get();
-      if (userDoc.exists()) {
-        setUserData(userDoc.data() as UserProfile);
-        console.log("AuthContext: User data found for UID:", mockAuthUser.uid, userDoc.data());
+      const userDocSnap = await db.collection("users").doc(mockAuthUser.uid).get();
+      if (userDocSnap.exists()) {
+        setUserData(userDocSnap.data() as UserProfile);
+        // console.log("AuthContext: User data found for UID:", mockAuthUser.uid, userDocSnap.data());
       } else {
-        console.warn("AuthContext: User data not found in mock DB for UID:", mockAuthUser.uid);
-        setUserData(null); // Should not happen if register creates it properly
+        // console.warn("AuthContext: User data not found in mock DB for UID:", mockAuthUser.uid);
+        setUserData(null); 
       }
     } catch (error) {
       console.error("AuthContext: Error fetching user data from mock DB:", error);
@@ -48,7 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const refreshUserData = async () => {
     if (user) {
-      console.log("AuthContext: Refreshing user data for UID:", user.uid);
+      // console.log("AuthContext: Refreshing user data for UID:", user.uid);
       setLoading(true);
       await fetchUserData(user);
       setLoading(false);
@@ -58,7 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     setLoading(true);
     const unsubscribe = auth.onAuthStateChanged(async (mockAuthUser: MockAuthUser | null) => {
-      console.log("AuthContext: onAuthStateChanged triggered. Mock Auth User:", mockAuthUser);
+      // console.log("AuthContext: onAuthStateChanged triggered. Mock Auth User:", mockAuthUser);
       setUser(mockAuthUser);
       if (mockAuthUser) {
         await fetchUserData(mockAuthUser);
@@ -99,11 +101,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             availability: true, 
             skills: [], 
             city: '', 
-            roleType: siteConfig.skills[0] // Default to first skill as roleType
+            roleType: siteConfig.skills[0],
+            subscription: {
+              planId: 'none',
+              planType: 'none',
+              status: 'inactive',
+              validUntil: null,
+            }
           } : {}),
           ...(role === 'customer' ? { 
             subscription: { 
-              planId: 'free', 
+              planId: 'free_customer', 
               planType: 'free', 
               validUntil: null, 
               status: 'active', 
@@ -113,7 +121,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           } : {}),
         };
         await db.collection("users").doc(mockAuthUser.uid).set(newUserProfile);
-        // setUserData(newUserProfile); // Set directly or let onAuthStateChanged handle it
         // onAuthStateChanged will handle setting user and fetching userData
       }
       return userCredential;
@@ -127,14 +134,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       await auth.signOut();
-      // onAuthStateChanged will set user and userData to null
     } catch (error) {
       setLoading(false);
       throw error;
     }
-    // Ensure loading is set to false even if onAuthStateChanged is slow or fails for some reason
-    // Though with mock, it should be quick.
-    // setLoading(false); 
   };
 
   const isAdmin = userData?.role === "admin";
@@ -149,15 +152,5 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     </AuthContext.Provider>
   );
 };
-
-// Dummy siteConfig for roleType default in register
-const siteConfig = {
-  skills: [
-    "Electrician", "Mason", "Plumber", "Carpenter", "Painter", "Welder", "Roofer",
-    "HVAC Technician", "Heavy Equipment Operator", "General Laborer", "Site Supervisor",
-    "Project Manager", "Surveyor", "Architect", "Civil Engineer",
-  ],
-};
-
 
 export default AuthContext;

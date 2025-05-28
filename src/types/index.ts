@@ -16,15 +16,16 @@ export interface UserProfile {
   currentWorkSites?: string[];
   pastWorkSites?: string[];
   
-  // Subscription details (for Labour and Customer with post limits)
+  // Subscription details (for Labour and Customer)
   subscription?: {
-    planId: string; // e.g., 'monthly_99', 'yearly_499'
-    planType: 'monthly' | 'yearly' | 'free' | 'premium_customer';
-    validUntil: Date | null; 
-    razorpayPaymentId?: string;
-    status: 'active' | 'inactive' | 'expired';
-    jobPostLimit?: number; // For customers
-    jobPostCount?: number; // For customers
+    planId: string; 
+    planType: string; // e.g., 'monthly', 'yearly', 'free', 'basic_customer_pack', 'premium_customer_pack'
+    validUntil: Date | string | null; 
+    razorpayPaymentId?: string; // For future real payment integration
+    status: 'active' | 'inactive' | 'expired' | 'none'; // 'none' for users who never subscribed
+    // Customer specific for job packs
+    jobPostLimit?: number; 
+    jobPostCount?: number; 
   };
   createdAt: Date | string;
   updatedAt?: Date | string;
@@ -104,3 +105,4 @@ export interface MockAuthUser {
 export interface MockUserCredential {
   user: MockAuthUser;
 }
+
