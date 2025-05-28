@@ -10,34 +10,37 @@ export function ScrollToTopButton() {
   const [isVisible, setIsVisible] = useState(false);
 
   const toggleVisibility = () => {
-    if (window.pageYOffset > 200) { // Show button after scrolling 200px
-      setIsVisible(true);
-    } else {
-      setIsVisible(false);
+    // Ensure window is defined (runs only on client)
+    if (typeof window !== "undefined") {
+      if (window.pageYOffset > 200) { // Show button after scrolling 200px
+        setIsVisible(true);
+      } else {
+        setIsVisible(false);
+      }
     }
   };
 
   const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    // Ensure window is defined (runs only on client)
+    if (typeof window !== "undefined") {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }
   };
 
   useEffect(() => {
     // Ensure window is defined (runs only on client)
     if (typeof window !== "undefined") {
         window.addEventListener("scroll", toggleVisibility);
+        // Call it once to set initial state
+        toggleVisibility(); 
         return () => {
             window.removeEventListener("scroll", toggleVisibility);
         };
     }
   }, []);
-
-  // Avoid rendering on server or during initial client hydration before visibility is determined
-  if (typeof window === 'undefined') {
-    return null;
-  }
 
   return (
     <Button
@@ -55,3 +58,4 @@ export function ScrollToTopButton() {
     </Button>
   );
 }
+

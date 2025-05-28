@@ -6,19 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Sun, Moon } from "lucide-react";
 
 export function FloatingThemeToggle() {
-  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('light');
+  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('light'); // Default to light to avoid undefined state
 
   useEffect(() => {
+    // This effect runs only on the client after hydration
     const storedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
-    // Check for window to ensure it's client-side for matchMedia
-    if (typeof window !== 'undefined') {
-        const preferredTheme = storedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        setCurrentTheme(preferredTheme);
-        if (preferredTheme === 'dark') {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+    const preferredTheme = storedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    
+    setCurrentTheme(preferredTheme);
+    if (preferredTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
   }, []);
 
@@ -35,11 +34,6 @@ export function FloatingThemeToggle() {
     });
   };
 
-  // Avoid rendering on server or during initial client hydration before theme is determined
-  if (typeof window === 'undefined' && !currentTheme) {
-    return null;
-  }
-
   return (
     <Button
       variant="outline"
@@ -52,3 +46,4 @@ export function FloatingThemeToggle() {
     </Button>
   );
 }
+
