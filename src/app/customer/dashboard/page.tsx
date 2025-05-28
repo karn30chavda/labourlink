@@ -373,7 +373,7 @@ export default function CustomerDashboardPage() {
                             </>
                             )}
                         </div>
-                        <Button size="sm" variant="ghost" className="w-full justify-end sm:w-auto" onClick={() => toast({title: "Info", description: `Contacting ${app.labourName}`})}>
+                        <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => toast({title: "Info", description: `Contacting ${app.labourName}`})}>
                             <MessageSquare className="mr-2 h-4 w-4"/> Contact
                         </Button>
                       </CardFooter>
