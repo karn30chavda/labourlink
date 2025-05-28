@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, LogIn, LogOut, UserPlus, LayoutDashboard, Menu, X, Sun, Moon } from "lucide-react";
+import { Building2, LogIn, LogOut, Menu, X } from "lucide-react"; // Removed Sun, Moon
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/hooks/use-auth";
@@ -22,37 +22,12 @@ import { usePathname } from 'next/navigation';
 export function Header() {
   const { user, userData, loading, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('light');
   const pathname = usePathname();
 
   useEffect(() => {
     // Close mobile menu on route change
     setIsMobileMenuOpen(false);
   }, [pathname]);
-
-  useEffect(() => {
-    const storedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
-    const preferredTheme = storedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    setCurrentTheme(preferredTheme);
-    if (preferredTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    setCurrentTheme(prevTheme => {
-      const newTheme = prevTheme === 'light' ? 'dark' : 'light';
-      localStorage.setItem('theme', newTheme);
-      if (newTheme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-      return newTheme;
-    });
-  };
 
   const getInitials = (name?: string) => {
     if (!name) return "NN";
@@ -92,17 +67,11 @@ export function Header() {
             ))}
           </nav>
 
-          {/* Theme Toggle Button */}
-          <Button variant="ghost" size="icon" onClick={toggleTheme} className="ml-2 md:ml-4">
-            {currentTheme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-            <span className="sr-only">Toggle theme</span>
-          </Button>
-
-          {/* Authentication Section (Login/Register or User Dropdown) */}
-          <div className="flex items-center space-x-2 ml-2">
+          {/* Authentication Section (Login/Register or User Dropdown) - DESKTOP */}
+          <div className="hidden md:flex items-center space-x-2 ml-4">
             {loading ? (
               <Skeleton className="h-9 w-24 rounded-md" />
-            ) : user ? ( // Firebase user exists, show dropdown
+            ) : user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
@@ -137,16 +106,11 @@ export function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <>
-                <Button asChild className="hidden sm:inline-flex">
-                  <Link href="/login">
-                    <LogIn className="mr-2 h-4 w-4" /> Login / Sign Up
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="icon" asChild className="sm:hidden">
-                  <Link href="/login"><LogIn className="h-5 w-5" /></Link>
-                </Button>
-              </>
+              <Button asChild>
+                <Link href="/login">
+                  <LogIn className="mr-2 h-4 w-4" /> Login / Sign Up
+                </Link>
+              </Button>
             )}
           </div>
 
@@ -174,10 +138,11 @@ export function Header() {
                 {item.title}
               </Link>
             ))}
-            {user && ( // If firebase user exists
+            {user && userData && (
               <>
                 <div className="my-2 border-t border-border/60"></div>
-                {userData && userNavItems.length > 0 && userNavItems.map(item => ( // Show user specific links if userData and items exist
+                 <DropdownMenuLabel className="px-3 pt-2 text-xs text-muted-foreground">Welcome, {userData.name}</DropdownMenuLabel>
+                {userNavItems.length > 0 && userNavItems.map(item => (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -197,7 +162,7 @@ export function Header() {
                 </button>
               </>
             )}
-             {!user && !loading && ( // If no firebase user and not loading
+             {!user && !loading && (
               <>
                 <div className="my-2 border-t border-border/60"></div>
                 <Link
@@ -210,6 +175,10 @@ export function Header() {
                 </Link>
               </>
             )}
+             {loading && (
+                <div className="my-2 border-t border-border/60"></div>
+                // Placeholder or skeleton for loading state in mobile menu if needed
+             )}
           </nav>
         </div>
       )}

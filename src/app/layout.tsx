@@ -1,3 +1,4 @@
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -6,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { siteConfig } from "@/config/site";
+import { FloatingThemeToggle } from "@/components/layout/FloatingThemeToggle"; // Added import
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +45,7 @@ export default function RootLayout({
             <Footer />
           </div>
           <Toaster />
+          <FloatingThemeToggle /> {/* Added component */}
         </AuthProvider>
       </body>
     </html>
