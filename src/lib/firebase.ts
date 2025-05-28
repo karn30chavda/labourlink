@@ -8,6 +8,7 @@ const MOCK_AUTH_USER_STORAGE_KEY = 'mockAuthUser';
 const MOCK_USERS_DB_STORAGE_KEY = 'mockUsersDb';
 const MOCK_JOBS_DB_STORAGE_KEY = 'mockJobsDb';
 const MOCK_APPLICATIONS_DB_STORAGE_KEY = 'mockApplicationsDb';
+const MOCK_DB_DELAY = 50; // ms delay for mock async operations
 
 // --- Helper to load from localStorage or use initial ---
 const loadFromLocalStorage = <T>(key: string, initialData: T): T => {
@@ -15,7 +16,7 @@ const loadFromLocalStorage = <T>(key: string, initialData: T): T => {
     try {
       const storedData = localStorage.getItem(key);
       if (storedData) {
-        console.log(`[MockDB Load] Loaded ${key} from localStorage:`, JSON.parse(storedData));
+        console.log(`[MockDB Load] Loaded ${key} from localStorage:`, JSON.parse(JSON.stringify(JSON.parse(storedData))));
         return JSON.parse(storedData);
       } else {
         console.log(`[MockDB Load] No data for ${key} in localStorage, using initialData.`);
@@ -43,7 +44,7 @@ const initialMockUsersDb: { [uid: string]: UserProfile } = {
       planId: siteConfig.paymentPlans.labour[0].id,
       planType: siteConfig.paymentPlans.labour[0].interval,
       status: 'active',
-      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // active for 30 days
     }
   },
   "customerTestUID": {
@@ -79,13 +80,13 @@ const saveMockUsersDb = () => {
 };
 const saveMockJobsDb = () => {
   if (typeof window !== 'undefined') {
-    console.log('[MockDB Save] Saving mockJobsDb to localStorage.');
+    console.log('[MockDB Save] Saving mockJobsDb to localStorage:', JSON.parse(JSON.stringify(mockJobsDb)));
     localStorage.setItem(MOCK_JOBS_DB_STORAGE_KEY, JSON.stringify(mockJobsDb));
   }
 };
 const saveMockApplicationsDb = () => {
   if (typeof window !== 'undefined') {
-    console.log('[MockDB Save] Saving mockApplicationsDb to localStorage.');
+    console.log('[MockDB Save] Saving mockApplicationsDb to localStorage:', JSON.parse(JSON.stringify(mockApplicationsDb)));
     localStorage.setItem(MOCK_APPLICATIONS_DB_STORAGE_KEY, JSON.stringify(mockApplicationsDb));
   }
 };
@@ -113,44 +114,53 @@ const auth = {
         } else {
           currentMockUser = null;
         }
+        console.log("[MockAuth onAuthStateChanged] Notifying listener with user:", currentMockUser);
         authStateListener(currentMockUser);
       }
-    }, 50);
+    }, MOCK_DB_DELAY);
     return () => { authStateListener = null; };
   },
   signInWithEmailAndPassword: async (email: string, password: string): Promise<MockUserCredential> => {
-    await new Promise(resolve => setTimeout(resolve, 20));
-    for (const uid in mockUsersDb) {
-      if (mockUsersDb[uid].email === email && (password === "password" || uid === "customerTestUID" || uid === "labourUID" || uid === "adminUID")) {
-        currentMockUser = { uid, email, displayName: mockUsersDb[uid].name };
-        if (typeof window !== 'undefined') localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(currentMockUser));
-        if (authStateListener) authStateListener(currentMockUser);
-        return { user: currentMockUser };
-      }
+    await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+    console.log("[MockAuth signIn] Attempting login for:", email);
+    const foundUser = Object.values(mockUsersDb).find(u => u.email === email);
+
+    if (foundUser && (password === "password" || email === "customer@labourlink.com" || email === "labour@labourlink.com" || email === "admin@labourlink.com")) {
+      currentMockUser = { uid: foundUser.uid, email: foundUser.email, displayName: foundUser.name };
+      if (typeof window !== 'undefined') localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(currentMockUser));
+      if (authStateListener) authStateListener(currentMockUser);
+      console.log("[MockAuth signIn] Login successful for:", email, currentMockUser);
+      return { user: currentMockUser };
     }
+    console.error("[MockAuth signIn] Login failed for:", email);
     throw new Error("Mock Auth: Invalid credentials. (Hint: Use 'password' for any mock user).");
   },
   createUserWithEmailAndPassword: async (email: string, password: string): Promise<MockUserCredential> => {
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
     if (Object.values(mockUsersDb).find(u => u.email === email)) {
+      console.error("[MockAuth register] Email already in use:", email);
       throw new Error("Mock Auth: Email already in use.");
     }
-    const uid = `mockUID-${Date.now()}`;
-    currentMockUser = { uid, email, displayName: '' }; // Name will be set by profile creation
+    const uid = `mockUID-${Date.now()}`; // Ensures UID is unique enough for mock purposes
+    currentMockUser = { uid, email, displayName: '' }; // Name will be set by profile creation from AuthContext
     if (typeof window !== 'undefined') localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(currentMockUser));
     if (authStateListener) authStateListener(currentMockUser);
+    console.log("[MockAuth register] User created with UID:", uid, "Email:", email);
     return { user: currentMockUser };
   },
   signOut: async (): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+    console.log("[MockAuth signOut] Signing out user:", currentMockUser?.email);
     currentMockUser = null;
     if (typeof window !== 'undefined') localStorage.removeItem(MOCK_AUTH_USER_STORAGE_KEY);
     if (authStateListener) authStateListener(null);
   },
   get currentUser(): MockAuthUser | null {
-    const storedUserStr = typeof window !== 'undefined' ? localStorage.getItem(MOCK_AUTH_USER_STORAGE_KEY) : null;
-    if (storedUserStr) {
-      return JSON.parse(storedUserStr);
+    if (typeof window !== 'undefined') {
+        const storedUserStr = localStorage.getItem(MOCK_AUTH_USER_STORAGE_KEY);
+        if (storedUserStr) {
+            return JSON.parse(storedUserStr);
+        }
     }
     return null;
   }
@@ -164,136 +174,158 @@ let applicationIdCounter = Object.keys(mockApplicationsDb).length > 0 ? Math.max
 
 
 const db = {
-  collection: (collectionName: string) => ({
-    doc: (docId?: string) => {
-      const id = docId || `mockDoc-${collectionName}-${Date.now()}`;
-      return {
-        get: async (): Promise<{ exists: () => boolean; data: () => any; id: string } | { exists: boolean; data: () => null; id: string }> => {
-          await new Promise(resolve => setTimeout(resolve, 10));
-          let dataStore: any;
-          if (collectionName === 'users') dataStore = mockUsersDb;
-          else if (collectionName === 'jobs') dataStore = mockJobsDb;
-          else if (collectionName === 'applications') dataStore = mockApplicationsDb;
-          else return { exists: false, data: () => null, id };
+  collection: (collectionName: string) => {
+    console.log(`[MockDB] Accessing collection: ${collectionName}`);
+    return {
+      doc: (docId?: string) => {
+        const id = docId || `mockDoc-${collectionName}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        console.log(`[MockDB] Accessing doc: ${id} in collection: ${collectionName}`);
+        return {
+          get: async (): Promise<{ exists: () => boolean; data: () => any | null; id: string }> => {
+            await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+            let dataStore: any;
+            if (collectionName === 'users') dataStore = mockUsersDb;
+            else if (collectionName === 'jobs') dataStore = mockJobsDb;
+            else if (collectionName === 'applications') dataStore = mockApplicationsDb;
+            else {
+              console.warn(`[MockDB Get] Unknown collection: ${collectionName}`);
+              return { exists: () => false, data: () => null, id };
+            }
 
-          const docData = dataStore[id];
-          if (docData) {
-            return { exists: () => true, data: () => ({...docData}), id };
+            const docData = dataStore[id];
+            if (docData) {
+              console.log(`[MockDB Get] Document found in ${collectionName} for ID ${id}:`, JSON.parse(JSON.stringify(docData)));
+              return { exists: () => true, data: () => ({...docData}), id };
+            }
+            console.log(`[MockDB Get] Document NOT found in ${collectionName} for ID ${id}`);
+            return { exists: () => false, data: () => null, id };
+          },
+          set: async (data: any) => {
+            await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+            const timestamp = new Date().toISOString();
+            if (collectionName === 'users') {
+              console.log(`[MockDB Set] Setting user ${id}:`, JSON.parse(JSON.stringify(data)));
+              mockUsersDb[id] = { ...data, uid: id, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as UserProfile;
+              saveMockUsersDb();
+            } else if (collectionName === 'jobs') {
+              mockJobsDb[id] = { ...data, id, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as Job;
+              saveMockJobsDb();
+            } else if (collectionName === 'applications') {
+              mockApplicationsDb[id] = { ...data, id, dateApplied: data.dateApplied || timestamp, updatedAt: timestamp } as Application;
+              saveMockApplicationsDb();
+            }
+          },
+          update: async (data: any) => {
+            console.log(`[MockDB Update] Attempting to update ${collectionName} doc ID: ${id} with payload:`, JSON.parse(JSON.stringify(data)));
+            await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+            const currentTimestamp = new Date().toISOString();
+            if (collectionName === 'users' && mockUsersDb[id]) {
+              console.log(`[MockDB Update] User ${id} before:`, JSON.parse(JSON.stringify(mockUsersDb[id])));
+              mockUsersDb[id] = { ...mockUsersDb[id], ...data, updatedAt: currentTimestamp };
+              console.log(`[MockDB Update] User ${id} after:`, JSON.parse(JSON.stringify(mockUsersDb[id])));
+              saveMockUsersDb();
+            } else if (collectionName === 'jobs' && mockJobsDb[id]) {
+               console.log(`[MockDB Update] Job ${id} before:`, JSON.parse(JSON.stringify(mockJobsDb[id])));
+              mockJobsDb[id] = { ...mockJobsDb[id], ...data, updatedAt: currentTimestamp };
+               console.log(`[MockDB Update] Job ${id} after:`, JSON.parse(JSON.stringify(mockJobsDb[id])));
+              saveMockJobsDb();
+            } else if (collectionName === 'applications' && mockApplicationsDb[id]) {
+              console.log(`[MockDB Update] Application ${id} before:`, JSON.parse(JSON.stringify(mockApplicationsDb[id])));
+              mockApplicationsDb[id] = { ...mockApplicationsDb[id], ...data, updatedAt: currentTimestamp };
+              console.log(`[MockDB Update] Application ${id} after:`, JSON.parse(JSON.stringify(mockApplicationsDb[id])));
+              saveMockApplicationsDb();
+            } else {
+              console.warn(`[MockDB Update] Document with ID ${id} not found in ${collectionName} for update.`);
+            }
+          },
+          delete: async () => {
+             await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+             if (collectionName === 'users') { delete mockUsersDb[id]; saveMockUsersDb(); }
+             else if (collectionName === 'jobs') {
+               if (mockJobsDb[id]) {
+                  mockJobsDb[id].status = 'deleted'; // Soft delete
+                  mockJobsDb[id].updatedAt = new Date().toISOString();
+                  saveMockJobsDb();
+               }
+             }
+             else if (collectionName === 'applications') { delete mockApplicationsDb[id]; saveMockApplicationsDb(); }
+             console.log(`[MockDB Delete] Deleted/Marked as deleted doc ID ${id} from ${collectionName}`);
           }
-          return { exists: false, data: () => null, id };
-        },
-        set: async (data: any) => {
-          await new Promise(resolve => setTimeout(resolve, 10));
+        };
+      },
+      add: async (data: any) => {
+          await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+          let newId = '';
           const timestamp = new Date().toISOString();
           if (collectionName === 'users') {
-            console.log(`[MockDB Set] Setting user ${id}:`, data);
-            mockUsersDb[id] = { ...data, uid: id, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as UserProfile;
-            saveMockUsersDb();
+              newId = data.uid || `mockUID-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+              mockUsersDb[newId] = { ...data, uid: newId, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as UserProfile;
+              saveMockUsersDb();
           } else if (collectionName === 'jobs') {
-            mockJobsDb[id] = { ...data, id, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as Job;
-            saveMockJobsDb();
+              newId = `job-${jobIdCounter++}`;
+              mockJobsDb[newId] = { ...data, id: newId, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as Job;
+              saveMockJobsDb();
           } else if (collectionName === 'applications') {
-            mockApplicationsDb[id] = { ...data, id, dateApplied: data.dateApplied || timestamp, updatedAt: timestamp } as Application;
-            saveMockApplicationsDb();
+              newId = `app-${applicationIdCounter++}`;
+              mockApplicationsDb[newId] = { ...data, id: newId, dateApplied: data.dateApplied || timestamp, updatedAt: timestamp } as Application;
+              saveMockApplicationsDb();
           }
-        },
-        update: async (data: any) => {
-          console.log(`[MockDB Update] Attempting to update ${collectionName} doc ID: ${id} with payload:`, JSON.parse(JSON.stringify(data)));
-          await new Promise(resolve => setTimeout(resolve, 10));
-          const currentTimestamp = new Date().toISOString();
-          if (collectionName === 'users' && mockUsersDb[id]) {
-            console.log(`[MockDB Update] User ${id} before:`, JSON.parse(JSON.stringify(mockUsersDb[id])));
-            mockUsersDb[id] = { ...mockUsersDb[id], ...data, updatedAt: currentTimestamp };
-            console.log(`[MockDB Update] User ${id} after:`, JSON.parse(JSON.stringify(mockUsersDb[id])));
-            saveMockUsersDb();
-          } else if (collectionName === 'jobs' && mockJobsDb[id]) {
-            mockJobsDb[id] = { ...mockJobsDb[id], ...data, updatedAt: currentTimestamp };
-            saveMockJobsDb();
-          } else if (collectionName === 'applications' && mockApplicationsDb[id]) {
-            mockApplicationsDb[id] = { ...mockApplicationsDb[id], ...data, updatedAt: currentTimestamp };
-            saveMockApplicationsDb();
-          } else {
-            console.warn(`[MockDB Update] Document with ID ${id} not found in ${collectionName}`);
-          }
-        },
-        delete: async () => {
-           await new Promise(resolve => setTimeout(resolve, 10));
-           if (collectionName === 'users') { delete mockUsersDb[id]; saveMockUsersDb(); }
-           else if (collectionName === 'jobs') {
-             if (mockJobsDb[id]) {
-                mockJobsDb[id].status = 'deleted';
-                mockJobsDb[id].updatedAt = new Date().toISOString();
-                saveMockJobsDb();
-             }
-           }
-           else if (collectionName === 'applications') { delete mockApplicationsDb[id]; saveMockApplicationsDb(); }
-        }
-      };
-    },
-    add: async (data: any) => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        let newId = '';
-        const timestamp = new Date().toISOString();
-        if (collectionName === 'users') {
-            newId = data.uid || `user-${Date.now()}`;
-            mockUsersDb[newId] = { ...data, uid: newId, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as UserProfile;
-            saveMockUsersDb();
-        } else if (collectionName === 'jobs') {
-            newId = `job-${jobIdCounter++}`;
-            mockJobsDb[newId] = { ...data, id: newId, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as Job;
-            saveMockJobsDb();
-        } else if (collectionName === 'applications') {
-            newId = `app-${applicationIdCounter++}`;
-            mockApplicationsDb[newId] = { ...data, id: newId, dateApplied: data.dateApplied || timestamp, updatedAt: timestamp } as Application;
-            saveMockApplicationsDb();
-        }
-        console.log(`[MockDB Add] Added to ${collectionName} with new ID ${newId}:`, data);
+          console.log(`[MockDB Add] Added to ${collectionName} with new ID ${newId}:`, JSON.parse(JSON.stringify(data)));
+          return {
+              id: newId,
+              get: async () => ({ id: newId, data: () => data, exists: () => true }) // Simplified mock reference
+          };
+      },
+      get: async () => { // For calls like db.collection("applications").get()
+          await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+          let storeToSearch: any[];
+          if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
+          else if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
+          else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
+          else storeToSearch = [];
+          
+          console.log(`[MockDB Get All] Fetching all from ${collectionName}. Found ${storeToSearch.length} items.`);
+          return {
+              empty: storeToSearch.length === 0,
+              docs: storeToSearch.map(doc => ({
+              id: (doc as any).id || (doc as any).uid,
+              data: () => ({...doc}),
+              exists: () => true // For consistency if someone tries to check .exists on a doc from a full collection get
+              })),
+          };
+      },
+      where: (field: keyof Job | keyof UserProfile | keyof Application, operator: string, value: any) => {
+        console.log(`[MockDB Where] Querying ${collectionName} where ${String(field)} ${operator} ${value}`);
         return {
-            id: newId,
-            get: async () => ({ id: newId, data: () => data, exists: () => true })
-        };
-    },
-    get: async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        let storeToSearch: any[];
-        if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
-        else if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
-        else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
-        else storeToSearch = [];
-        return {
-            empty: storeToSearch.length === 0,
-            docs: storeToSearch.map(doc => ({
-            id: (doc as any).id || (doc as any).uid,
-            data: () => ({...doc})
-            })),
-        };
-    },
-    where: (field: keyof Job | keyof UserProfile | keyof Application, operator: string, value: any) => ({
-      get: async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        let storeToSearch: any[];
-        if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
-        else if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
-        else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
-        else storeToSearch = [];
+            get: async () => {
+                await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+                let storeToSearch: any[];
+                if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
+                else if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
+                else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
+                else storeToSearch = [];
 
-        const results = storeToSearch.filter(doc => {
-          const docValue = doc[field as keyof typeof doc];
-          if (operator === '==') return docValue === value;
-          if (operator === '!=') return docValue !== value;
-          if (operator === 'array-contains' && Array.isArray(docValue)) return docValue.includes(value);
-          return false;
-        });
-        return {
-          empty: results.length === 0,
-          docs: results.map(doc => ({
-            id: (doc as any).id || (doc as any).uid,
-            data: () => ({...doc})
-          })),
-        };
+                const results = storeToSearch.filter(doc => {
+                const docValue = doc[field as keyof typeof doc];
+                if (operator === '==') return docValue === value;
+                if (operator === '!=') return docValue !== value;
+                if (operator === 'array-contains' && Array.isArray(docValue)) return docValue.includes(value);
+                // Add more operators as needed for mock
+                return false;
+                });
+                console.log(`[MockDB Where Get] Found ${results.length} results for query.`);
+                return {
+                    empty: results.length === 0,
+                    docs: results.map(doc => ({
+                        id: (doc as any).id || (doc as any).uid,
+                        data: () => ({...doc}),
+                        exists: () => true // For consistency
+                    })),
+                };
+            }
+        }
       }
     })
-  })
 };
 
 // Mock Firebase Storage (basic version, no actual upload/download)
@@ -301,12 +333,12 @@ const storage = {
   ref: (path?: string) => ({
     put: async (file: File) => {
       console.log(`[MockStorage] Simulating upload of ${file.name} to ${path}`);
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
       return {
         snapshot: {
           ref: {
             getDownloadURL: async () => {
-              await new Promise(resolve => setTimeout(resolve, 20));
+              await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
               return `https://placehold.co/100x100.png?text=MOCKIMG`;
             }
           }
@@ -315,7 +347,7 @@ const storage = {
     },
     getDownloadURL: async () => {
       console.log(`[MockStorage] Simulating getDownloadURL for ${path}`);
-      await new Promise(resolve => setTimeout(resolve, 20));
+      await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
       return `https://placehold.co/100x100.png?text=MOCK`;
     }
   })
