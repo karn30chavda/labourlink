@@ -39,8 +39,8 @@ const labourProfileFormSchema = z.object({
   }),
   city: z.string().min(1, { message: "Please select your city." }),
   availability: z.boolean().default(false),
-  currentWorkSites: z.string().optional(), 
-  pastWorkSites: z.string().optional(), 
+  currentWorkSites: z.string().optional(),
+  pastWorkSites: z.string().optional(),
 });
 
 type LabourProfileFormValues = z.infer<typeof labourProfileFormSchema>;
@@ -66,6 +66,7 @@ export function LabourProfileForm() {
 
   useEffect(() => {
     if (userData) {
+      console.log("[LabourProfileForm] useEffect updating form with userData:", JSON.parse(JSON.stringify(userData)));
       form.reset({
         name: userData.name || "",
         phone: userData.phone || "",
@@ -82,7 +83,10 @@ export function LabourProfileForm() {
   async function onSubmit(data: LabourProfileFormValues) {
     if (!userData) return;
     setIsLoading(true);
-    
+    console.log("[LabourProfileForm] Submitting profile data:", JSON.parse(JSON.stringify(data)));
+    console.log("[LabourProfileForm] Submitting city:", data.city);
+
+
     const profileDataToUpdate: Partial<UserProfile> = {
       name: data.name,
       phone: data.phone,
@@ -94,10 +98,13 @@ export function LabourProfileForm() {
       pastWorkSites: data.pastWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
       updatedAt: new Date().toISOString(),
     };
+    
+    console.log("[LabourProfileForm] profileDataToUpdate payload:", JSON.parse(JSON.stringify(profileDataToUpdate)));
+
 
     try {
       await db.collection("users").doc(userData.uid).update(profileDataToUpdate);
-      await refreshUserData(); 
+      await refreshUserData();
       toast({
         title: "Profile Updated",
         description: "Your profile information has been successfully updated.",
@@ -162,7 +169,7 @@ export function LabourProfileForm() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {siteConfig.skills.map(skill => ( 
+                      {siteConfig.skills.map(skill => (
                         <SelectItem key={skill} value={skill}>{skill}</SelectItem>
                       ))}
                     </SelectContent>

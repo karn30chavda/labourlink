@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { matchLabor } from "@/ai/flows/labor-match";
-import type { Job, Labor, Application } from "@/types";
+import type { Job, Labor, Application, UserProfile } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { db } from "@/lib/firebase"; 
+import { db } from "@/lib/firebase";
 import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle, FileText, UserCheck, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -27,15 +27,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
-
-const mockAvailableLabors: Labor[] = [
-  { name: "Mike P.", role: "Plumber", skills: ["Pipe Fitting", "Drain Cleaning", "Fixture Installation"], availability: true, city: "MockCity", pastWorkingSites: ["Site A", "Site B"] },
-  { name: "Sarah E.", role: "Electrician", skills: ["Wiring", "Panel Upgrades", "Lighting Installation"], availability: true, city: "MockCity", pastWorkingSites: ["Site C"] },
-  { name: "David M.", role: "Mason", skills: ["Bricklaying", "Concrete Work"], availability: false, city: "MockCity", pastWorkingSites: ["Site D", "Site E"] },
-  { name: "Carlos R.", role: "Plumber", skills: ["Pipe Fitting", "Leak Detection"], availability: true, city: "AnotherCity", pastWorkingSites: ["Site F"] },
-];
-
-
 export default function CustomerDashboardPage() {
   const { userData } = useAuth();
   const { toast } = useToast();
@@ -44,15 +35,14 @@ export default function CustomerDashboardPage() {
   const [jobApplications, setJobApplications] = useState<Application[]>([]);
   const [loadingApplications, setLoadingApplications] = useState(true);
 
-
   const [selectedJobForMatch, setSelectedJobForMatch] = useState<Job | null>(null);
-  const [bestMatch, setBestMatch] = useState<any | null>(null); 
+  const [bestMatch, setBestMatch] = useState<any | null>(null);
   const [matchingLoading, setMatchingLoading] = useState(false);
   const [matchingError, setMatchingError] = useState<string | null>(null);
 
   const fetchCustomerData = async () => {
     if (!userData?.uid) return;
-    
+
     setLoadingJobs(true);
     setLoadingApplications(true);
 
@@ -61,16 +51,16 @@ export default function CustomerDashboardPage() {
       const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
       const jobsData = jobsSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as Job))
-          .filter(job => job.status !== 'deleted') 
+          .filter(job => job.status !== 'deleted')
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setCustomerJobs(jobsData);
-      
+
       // Fetch applications for these jobs
       if (jobsData.length > 0) {
         const customerJobIds = jobsData.map(job => job.id);
-        const allAppsSnapshot = await db.collection("applications").get(); 
+        const allAppsSnapshot = await db.collection("applications").get();
         const allApps = allAppsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
-        
+
         const relevantApplications = allApps
           .filter(app => customerJobIds.includes(app.jobId))
           .sort((a, b) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime());
@@ -104,15 +94,32 @@ export default function CustomerDashboardPage() {
     setMatchingLoading(true);
     setMatchingError(null);
     setBestMatch(null);
+
     try {
+      // Fetch all labour users from the mock database
+      const laboursSnapshot = await db.collection("users").where("role", "==", "labour").get();
+      const allLabourProfiles = laboursSnapshot.docs.map(doc => doc.data() as UserProfile);
+
+      // Transform UserProfile[] to Labor[] for the AI flow
+      const availableLaborsForAI: Labor[] = allLabourProfiles
+        .filter(profile => profile.availability && profile.city && profile.skills) // Ensure essential fields exist
+        .map(profile => ({
+          name: profile.name,
+          role: profile.roleType || "Skilled Labour", // Use roleType or a default
+          skills: profile.skills || [],
+          availability: profile.availability || false,
+          city: profile.city || "",
+          pastWorkingSites: profile.pastWorkSites || [],
+        }));
+
       const jobPostDescription = `Title: ${job.title}\nDescription: ${job.description || 'N/A'}\nRequired Skill: ${job.requiredSkill}\nLocation: ${job.location}\nDuration: ${job.duration}`;
-      
-      const relevantLabors = mockAvailableLabors.filter(
+
+      const relevantLabors = availableLaborsForAI.filter(
         l => l.city === job.location && l.skills.includes(job.requiredSkill) && l.availability
       );
 
       if (relevantLabors.length === 0) {
-        setMatchingError("No available labors found matching the job's city and skill requirements for AI matching.");
+        setMatchingError("No available labours found matching the job's city and skill requirements for AI matching in the current database.");
         setMatchingLoading(false);
         return;
       }
@@ -165,7 +172,7 @@ export default function CustomerDashboardPage() {
               <Link href="/customer/post-job"><PlusCircle className="mr-2 h-5 w-5" /> Post a New Job</Link>
             </Button>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -315,7 +322,7 @@ export default function CustomerDashboardPage() {
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg">{app.jobTitle}</CardTitle>
-                          <Badge 
+                          <Badge
                             variant={app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : app.status === 'Rejected_by_customer' ? 'destructive' : 'outline'}
                             className={cn(
                               'whitespace-nowrap text-center',
@@ -368,6 +375,3 @@ export default function CustomerDashboardPage() {
     </AuthGuard>
   );
 }
-
-
-      
