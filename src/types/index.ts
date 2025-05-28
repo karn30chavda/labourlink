@@ -19,14 +19,14 @@ export interface UserProfile {
   subscription?: {
     planId: string; 
     planType: string; 
-    validUntil: Date | string | null; 
+    validUntil: string | null; // Changed from Date | string | null to string | null for localStorage
     razorpayPaymentId?: string; 
     status: 'active' | 'inactive' | 'expired' | 'none';
     jobPostLimit?: number; 
     jobPostCount?: number; 
   };
-  createdAt: Date | string;
-  updatedAt?: Date | string;
+  createdAt: string; // Changed from Date | string
+  updatedAt?: string; // Changed from Date | string
 }
 
 export interface Job {
@@ -40,8 +40,8 @@ export interface Job {
   duration: string; 
   budget?: string; 
   status: 'pending_approval' | 'open' | 'assigned' | 'in_progress' | 'completed' | 'cancelled_by_customer' | 'expired' | 'deleted';
-  createdAt: Date | string;
-  updatedAt?: Date | string;
+  createdAt: string; // Changed from Date | string
+  updatedAt?: string; // Changed from Date | string
   approvedByAdmin?: boolean;
   assignedLabourId?: string; 
 }
@@ -49,18 +49,19 @@ export interface Job {
 export interface Application {
   id: string;
   labourId: string;
-  labourName?: string; // Added
+  labourName?: string;
+  labourRoleType?: string; // Added to store labour's primary role/skill
   jobId: string;
   jobTitle?: string;
   customerId?: string; 
-  customerName?: string; // Added
+  customerName?: string;
   message?: string; 
-  dateApplied: Date | string;
-  status: 'Pending' | 'Shortlisted' | 'Accepted' | 'Rejected_by_customer' | 'Withdrawn_by_labour'; // Consistent casing
+  dateApplied: string; // Changed from Date | string
+  status: 'Pending' | 'Shortlisted' | 'Accepted' | 'Rejected_by_customer' | 'Withdrawn_by_labour';
   proposedRate?: string; 
-  // Added fields to enrich application display
   jobRequiredSkill?: string;
   jobLocation?: string;
+  updatedAt?: string; // Added for consistency
 }
 
 export interface Payment {
@@ -75,27 +76,28 @@ export interface Payment {
   amount: number;
   currency: 'INR';
   status: 'created' | 'authorized' | 'captured' | 'refunded' | 'failed';
-  createdAt: Date | string;
+  createdAt: string; // Changed from Date | string
 }
 
 export type UserRole = 'labour' | 'customer' | 'admin';
 
-export interface Labor {
+export interface Labor { // This seems to be for the AI flow, keep as is
   name: string;
   role: string;
   skills: string[];
   availability: boolean;
   city: string;
-  pastWorkingSites: string[];
+  pastWorkSites: string[];
 }
 
-export interface JobPosting {
+export interface JobPosting { // This seems to be for the AI flow, keep as is
   title: string;
   description: string;
   requiredSkill: string;
   location: string;
 }
 
+// Mock Auth Types - Keep as is
 export interface MockAuthUser {
   uid: string;
   email: string | null;

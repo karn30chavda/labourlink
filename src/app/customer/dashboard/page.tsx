@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { matchLabor } from "@/ai/flows/labor-match";
-import type { Job, Labor } from "@/types";
+import type { Job, Labor, Application } from "@/types"; // Added Application
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { db } from "@/lib/firebase"; 
-import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle } from "lucide-react";
+import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle, FileText, UserCheck, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -40,6 +40,9 @@ export default function CustomerDashboardPage() {
   const { toast } = useToast();
   const [customerJobs, setCustomerJobs] = useState<Job[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
+  const [jobApplications, setJobApplications] = useState<Application[]>([]);
+  const [loadingApplications, setLoadingApplications] = useState(true);
+
 
   const [selectedJobForMatch, setSelectedJobForMatch] = useState<Job | null>(null);
   const [bestMatch, setBestMatch] = useState<any | null>(null); 
@@ -47,32 +50,53 @@ export default function CustomerDashboardPage() {
   const [matchingError, setMatchingError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchCustomerJobs = async () => {
+    const fetchData = async () => {
       if (!userData?.uid) return;
+      
       setLoadingJobs(true);
+      setLoadingApplications(true);
+
       try {
+        // Fetch customer's jobs
         const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
         const jobsData = jobsSnapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as Job))
-            .filter(job => job.status !== 'deleted') // Client-side filter for soft delete status
+            .filter(job => job.status !== 'deleted') 
             .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
         setCustomerJobs(jobsData);
+        
+        // Fetch applications for these jobs
+        if (jobsData.length > 0) {
+          const customerJobIds = jobsData.map(job => job.id);
+          const allAppsSnapshot = await db.collection("applications").get(); // Mock: get all applications
+          const allApps = allAppsSnapshot.docs.map(doc => doc.data() as Application);
+          
+          const relevantApplications = allApps
+            .filter(app => customerJobIds.includes(app.jobId))
+            .sort((a, b) => new Date(b.dateApplied as string).getTime() - new Date(a.dateApplied as string).getTime());
+          setJobApplications(relevantApplications);
+        } else {
+          setJobApplications([]);
+        }
+
       } catch (error) {
-        console.error("Error fetching customer jobs:", error);
-        toast({ title: "Error", description: "Could not fetch your job posts.", variant: "destructive" });
+        console.error("Error fetching customer data:", error);
+        toast({ title: "Error", description: "Could not fetch your dashboard data.", variant: "destructive" });
       } finally {
         setLoadingJobs(false);
+        setLoadingApplications(false);
       }
     };
 
     if (userData?.uid) {
-        fetchCustomerJobs();
+        fetchData();
     }
   }, [userData?.uid, toast]);
 
 
   const openJobsCount = customerJobs.filter(job => job.status === 'open').length;
   const pendingApprovalCount = customerJobs.filter(job => job.status === 'pending_approval').length;
+  const newApplicationsCount = jobApplications.filter(app => app.status === 'Pending').length; // Count new "Pending" applications
 
   const handleFindMatch = async (job: Job) => {
     setSelectedJobForMatch(job);
@@ -107,13 +131,21 @@ export default function CustomerDashboardPage() {
 
   const handleDeleteJob = async (jobId: string) => {
     try {
-      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date() });
+      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date().toISOString() });
       setCustomerJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
       toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
     } catch (error) {
       console.error("Error deleting job:", error);
       toast({ title: "Error", description: "Failed to delete the job post.", variant: "destructive" });
     }
+  };
+
+  const handleApplicationAction = (appId: string, action: 'Accepted' | 'Rejected_by_customer') => {
+    // Mock: Update application status locally and show toast
+    setJobApplications(prevApps => prevApps.map(app => app.id === appId ? { ...app, status: action } : app));
+    toast({ title: `Application ${action}`, description: `The application has been marked as ${action.toLowerCase().replace('_by_customer', '')}.` });
+    // In a real app, you'd update Firestore:
+    // await db.collection("applications").doc(appId).update({ status: action, updatedAt: new Date().toISOString() });
   };
 
   return (
@@ -130,7 +162,7 @@ export default function CustomerDashboardPage() {
             </Button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Job Posts</CardTitle>
@@ -140,6 +172,18 @@ export default function CustomerDashboardPage() {
                 <div className="text-2xl font-bold">{openJobsCount}</div>
                 <p className="text-xs text-muted-foreground">
                   Currently open for applications
+                </p>
+              </CardContent>
+            </Card>
+             <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">New Applications</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{newApplicationsCount}</div>
+                <p className="text-xs text-muted-foreground">
+                  Pending review for your jobs
                 </p>
               </CardContent>
             </Card>
@@ -245,6 +289,64 @@ export default function CustomerDashboardPage() {
                       </CardFooter>
                     </Card>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Applications Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Applications for Your Jobs</CardTitle>
+              <CardDescription>Labours who have applied to your job postings.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingApplications ? (
+                <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading applications...</p></div>
+              ) : jobApplications.length === 0 ? (
+                <p className="text-muted-foreground">No applications received for your jobs yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {jobApplications.slice(0, 5).map(app => ( // Show top 5 recent applications
+                    <Card key={app.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <CardTitle className="text-lg">{app.jobTitle}</CardTitle>
+                          <Badge variant={app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : 'outline'}
+                                 className={app.status === 'Accepted' ? 'bg-green-500 text-white' : ''}>
+                            {app.status.replace(/_/g, ' ')}
+                          </Badge>
+                        </div>
+                         <CardDescription>
+                          Applicant: {app.labourName} ({app.labourRoleType || 'N/A'}) applied on {new Date(app.dateApplied).toLocaleDateString()}
+                        </CardDescription>
+                      </CardHeader>
+                      {app.message && <CardContent><p className="text-sm italic text-muted-foreground p-2 bg-muted/30 rounded-md border">Message: "{app.message}"</p></CardContent>}
+                      <CardFooter className="flex justify-end gap-2 border-t pt-4">
+                        {app.status === 'Pending' && (
+                           <>
+                            <Button size="sm" variant="outline" onClick={() => handleApplicationAction(app.id, 'Accepted')}>
+                                <UserCheck className="mr-2 h-4 w-4"/> Accept
+                            </Button>
+                            <Button size="sm" variant="destructive" className="bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id, 'Rejected_by_customer')}>
+                                <Users className="mr-2 h-4 w-4"/> Reject (mock)
+                            </Button>
+                           </>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => toast({title: "Info", description: `Contacting ${app.labourName}`})}>
+                            <MessageSquare className="mr-2 h-4 w-4"/> Contact (mock)
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                  {jobApplications.length > 5 && (
+                     <div className="text-center mt-4">
+                        <Button variant="link" asChild>
+                            {/* Link to a future "All Applications" page for customer */}
+                            <Link href="#">View All Applications</Link>
+                        </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

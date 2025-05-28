@@ -5,7 +5,7 @@ import type { Application, Job, UserProfile } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { MapPin, Briefcase, Clock, DollarSign, Eye, ShieldAlert, CheckCircle, Loader2 } from "lucide-react";
+import { MapPin, Briefcase, Clock, DollarSign, Eye, ShieldAlert, CheckCircle, Loader2, UserCheck, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth"; 
 import { useToast } from "@/hooks/use-toast";
@@ -43,18 +43,26 @@ export function JobCard({ job, hasApplied = false, onApplySuccess }: JobCardProp
 
     setIsApplying(true);
     try {
-      const applicationData: Omit<Application, 'id' | 'dateApplied'> = {
+      // Ensure all necessary fields for Application type are included
+      const applicationData: Omit<Application, 'id' | 'dateApplied' | 'updatedAt'> = {
         labourId: userData.uid,
-        labourName: userData.name,
+        labourName: userData.name, // From UserProfile
+        labourRoleType: userData.roleType, // From UserProfile, new
         jobId: job.id,
         jobTitle: job.title,
         customerId: job.customerId,
-        customerName: job.customerName,
+        customerName: job.customerName, // From Job
         status: 'Pending',
-        jobRequiredSkill: job.requiredSkill,
-        jobLocation: job.location,
+        jobRequiredSkill: job.requiredSkill, // From Job
+        jobLocation: job.location, // From Job
+        // message and proposedRate can be added later via an application form
       };
-      await db.collection("applications").add(applicationData);
+      
+      // For mock db, we pass the full object. Real Firestore addDoc would auto-generate dateApplied.
+      await db.collection("applications").add({
+        ...applicationData,
+        dateApplied: new Date().toISOString() 
+      });
       
       toast({title: "Applied Successfully!", description: `You have applied for: ${job.title}`});
       if (onApplySuccess) {
