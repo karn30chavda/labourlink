@@ -44,7 +44,7 @@ const labourProfileFormSchema = z.object({
   currentWorkSites: z.string().optional(),
   pastWorkSites: z.string().optional(),
   profilePhotoUrl: z.string().url().optional().nullable(),
-  newProfilePhoto: z.instanceof(File).optional().nullable(), // For handling the file input
+  newProfilePhoto: z.instanceof(File).optional().nullable(),
 });
 
 type LabourProfileFormValues = z.infer<typeof labourProfileFormSchema>;
@@ -83,18 +83,15 @@ export function LabourProfileForm() {
         availability: userData.availability || false,
         currentWorkSites: Array.isArray(userData.currentWorkSites) ? userData.currentWorkSites.join(", ") : userData.currentWorkSites || "",
         pastWorkSites: Array.isArray(userData.pastWorkSites) ? userData.pastWorkSites.join(", ") : userData.pastWorkSites || "",
-        profilePhotoUrl: userData.profilePhotoUrl || null,
-        newProfilePhoto: null, // Always reset file input
+        profilePhotoUrl: userData.profilePhotoUrl || null, 
+        newProfilePhoto: null, 
       };
       console.log("[LabourProfileForm] Resetting form with values:", JSON.parse(JSON.stringify(resetValues)));
       form.reset(resetValues);
-      if (userData.profilePhotoUrl) {
-        setImagePreview(userData.profilePhotoUrl);
-      } else {
-        setImagePreview(null);
-      }
+      console.log("[LabourProfileForm] Attempting to set imagePreview with userData.profilePhotoUrl:", userData.profilePhotoUrl);
+      setImagePreview(userData.profilePhotoUrl || null);
     } else {
-        console.log("[LabourProfileForm] useEffect triggered but userData is null/undefined. Form will use defaultValues or previously set values if not explicitly reset to empty.");
+        console.log("[LabourProfileForm] useEffect triggered but userData is null/undefined. Resetting form to defaults.");
         form.reset({ name: "", phone: "", roleType: "", skills: [], city: "", availability: false, currentWorkSites: "", pastWorkSites: "", profilePhotoUrl: null, newProfilePhoto: null });
         setImagePreview(null);
     }
@@ -104,7 +101,6 @@ export function LabourProfileForm() {
     const file = event.target.files?.[0];
     if (file) {
       form.setValue("newProfilePhoto", file);
-      // Create a preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
@@ -112,7 +108,9 @@ export function LabourProfileForm() {
       reader.readAsDataURL(file);
     } else {
       form.setValue("newProfilePhoto", null);
-      setImagePreview(form.getValues("profilePhotoUrl")); // Revert to existing URL if file is cleared
+      // When file input is cleared, revert preview to the currently saved profilePhotoUrl from form state
+      // This form state value should have been set by form.reset() in the useEffect based on userData
+      setImagePreview(form.getValues("profilePhotoUrl")); 
     }
   };
 
@@ -125,14 +123,14 @@ export function LabourProfileForm() {
     console.log("[LabourProfileForm] Submitting form data:", JSON.parse(JSON.stringify(data)));
     console.log("[LabourProfileForm] Submitting city:", data.city);
 
-    let uploadedPhotoUrl = data.profilePhotoUrl;
+    let uploadedPhotoUrl = data.profilePhotoUrl; // Start with existing or null
 
     if (data.newProfilePhoto) {
         try {
             // Simulate upload to mock storage
             const storageRef = storage.ref(`profilePictures/${userData.uid}/${data.newProfilePhoto.name}`);
             const uploadTask = await storageRef.put(data.newProfilePhoto as File); // Cast to File for mock
-            uploadedPhotoUrl = await uploadTask.snapshot.ref.getDownloadURL();
+            uploadedPhotoUrl = await uploadTask.snapshot.ref.getDownloadURL(); // This will be the NEW mock URL
             toast({ title: "Profile Picture Updated", description: "New picture 'uploaded' (mock)." });
         } catch (error) {
             console.error("Mock image upload error:", error);
@@ -151,14 +149,15 @@ export function LabourProfileForm() {
       availability: data.availability,
       currentWorkSites: data.currentWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
       pastWorkSites: data.pastWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
-      profilePhotoUrl: uploadedPhotoUrl,
+      profilePhotoUrl: uploadedPhotoUrl, // This will be the NEW mock URL if a new photo was "uploaded", or the existing one if not.
+      updatedAt: new Date().toISOString(),
     };
     
     console.log("[LabourProfileForm] profileDataToUpdate payload:", JSON.parse(JSON.stringify(profileDataToUpdate)));
 
     try {
       await db.collection("users").doc(userData.uid).update(profileDataToUpdate);
-      await refreshUserData(); 
+      await refreshUserData(); // This fetches the updated data and sets userData in context
       toast({
         title: "Profile Updated",
         description: "Your profile information has been successfully updated.",
@@ -172,17 +171,19 @@ export function LabourProfileForm() {
       });
     } finally {
       setIsLoading(false);
-      form.setValue("newProfilePhoto", null); // Clear file input after submission
+      // The form field newProfilePhoto is correctly reset to null by the useEffect -> form.reset
+      // after userData is refreshed and the component re-renders.
     }
   }
   
   const getInitials = (name?: string) => {
-    if (!name) return "NN";
-    const names = name.split(' ');
-    if (names.length > 1) {
+    if (!name || name.trim() === "") return "NN";
+    const names = name.trim().split(' ').filter(n => n); 
+    if (names.length === 0) return "NN";
+    if (names.length > 1 && names[0] && names[names.length -1]) {
       return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
+    return names[0].substring(0, 2).toUpperCase();
   }
 
 
@@ -205,7 +206,7 @@ export function LabourProfileForm() {
               <FormField
                 control={form.control}
                 name="newProfilePhoto"
-                render={({ field }) => ( // We only need field.onChange from the render prop
+                render={() => ( // field isn't directly used for <Input type="file"> with custom handler
                   <FormItem className="w-full max-w-xs">
                     <FormLabel htmlFor="profile-picture-upload" className="sr-only">Upload new profile picture</FormLabel>
                     <FormControl>
