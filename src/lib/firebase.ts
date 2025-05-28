@@ -56,15 +56,9 @@ const initialMockUsersDb: { [uid: string]: UserProfile } = {
   },
 };
 
-const initialMockJobsDb: { [id: string]: Job } = {
-  'job1': { id: 'job1', title: 'Urgent Plumbing for New Condo', customerId: 'customerTestUID', customerName: 'Test Customer', description: 'Fix leaky pipes and install new sink in a newly constructed condominium. Requires experience with PEX and copper piping. All materials will be provided on site. Work to be completed within 2 days.', requiredSkill: 'Plumber', location: 'Mumbai', duration: '2 days', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 3).toISOString(), budget: '₹5,000 - ₹8,000' },
-  'job2': { id: 'job2', title: 'Electrical Wiring for Retail Outlet', customerId: 'customerUID2', customerName: 'Fashion Forward Inc.', description: 'Complete electrical wiring, fixture installation, and panel setup for a new retail store. Must adhere to commercial electrical codes. Blueprints available.', requiredSkill: 'Electrician', location: 'Delhi', duration: '5 days', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(), budget: '₹15,000' },
-  'jobCust1': { id: 'jobCust1', title: 'Garden Wall Construction - Phase 1', customerId: 'customerTestUID', customerName: 'Test Customer', description: 'Build a 20-meter long, 1.5-meter high brick garden wall. Foundation is already prepared. Masonry skills and attention to detail are key.', requiredSkill: 'Mason', location: 'Mumbai', duration: '1 week', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString(), budget: '₹20,000 - ₹25,000' },
-};
+const initialMockJobsDb: { [id: string]: Job } = {}; // Cleared initial jobs
 
-const initialMockApplicationsDb: { [id: string]: Application } = {
-  'app1': { id: 'app1', labourId: 'labourUID', labourName: 'Labour User', jobId: 'jobCust1', jobTitle: 'Garden Wall Construction - Phase 1', customerId: 'customerTestUID', customerName: 'Test Customer', status: 'Pending', dateApplied: new Date(Date.now() - 86400000 * 1).toISOString(), jobRequiredSkill: 'Mason', jobLocation: 'Mumbai' },
-};
+const initialMockApplicationsDb: { [id: string]: Application } = {}; // Cleared initial applications
 
 
 // --- Load data from localStorage or use initial mocks ---
@@ -114,6 +108,7 @@ const saveMockApplicationsDb = () => {
 const auth = {
   onAuthStateChanged: (callback: (user: MockAuthUser | null) => void): (() => void) => {
     authStateListener = callback;
+    // Simulate async nature and loading from localStorage
     setTimeout(() => {
       if (typeof window !== 'undefined') {
         const storedUser = localStorage.getItem(MOCK_AUTH_USER_STORAGE_KEY);
@@ -131,7 +126,7 @@ const auth = {
       if (authStateListener) {
         authStateListener(currentMockUser);
       }
-    }, 50); // Simulate async nature
+    }, 50);
     return () => {
       authStateListener = null;
     };
@@ -139,7 +134,8 @@ const auth = {
   signInWithEmailAndPassword: async (email: string, password: string): Promise<MockUserCredential> => {
     await new Promise(resolve => setTimeout(resolve, 20)); // Simulate async
     for (const uid in mockUsersDb) {
-      if (mockUsersDb[uid].email === email && password === "password") { // Simplified password check
+      // For mock purposes, any password is 'password' or matches a hardcoded one if needed for specific tests
+      if (mockUsersDb[uid].email === email && (password === "password" || mockUsersDb[uid].uid === "customerTestUID" || mockUsersDb[uid].uid === "labourUID" || mockUsersDb[uid].uid === "adminUID")) { // Simplified password check
         currentMockUser = { uid, email, displayName: mockUsersDb[uid].name };
         if (typeof window !== 'undefined') {
           localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(currentMockUser));
@@ -217,10 +213,11 @@ const db = {
             mockUsersDb[id] = { ...data, uid: id, createdAt: data.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() } as UserProfile;
             saveMockUsersDb();
           } else if (collectionName === 'jobs') {
+             // Ensure new jobs posted by customers are set to 'open' and 'approvedByAdmin: true' for mock purposes
             mockJobsDb[id] = { ...data, id, status: 'open', approvedByAdmin: true, createdAt: data.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() } as Job;
             saveMockJobsDb();
           } else if (collectionName === 'applications') {
-            mockApplicationsDb[id] = { ...data, id, dateApplied: data.dateApplied || new Date().toISOString(), status: data.status || 'Pending' } as Application;
+            mockApplicationsDb[id] = { ...data, id, dateApplied: data.dateApplied || new Date().toISOString(), status: data.status || 'Pending', updatedAt: new Date().toISOString() } as Application;
             saveMockApplicationsDb();
           }
         },
@@ -230,11 +227,12 @@ const db = {
             mockUsersDb[id] = { ...mockUsersDb[id], ...data, updatedAt: new Date().toISOString() };
             saveMockUsersDb();
           } else if (collectionName === 'jobs' && mockJobsDb[id]) {
-            mockJobsDb[id] = { // When a job is updated, assume it needs re-approval
+             // When a job is updated, assume it needs re-approval for mock
+            mockJobsDb[id] = {
               ...mockJobsDb[id],
               ...data,
-              status: 'pending_approval', // Reset status
-              approvedByAdmin: false,       // Reset approval
+              status: 'pending_approval', 
+              approvedByAdmin: false,      
               updatedAt: new Date().toISOString()
             };
             saveMockJobsDb();
@@ -257,7 +255,7 @@ const db = {
         }
       };
     },
-    add: async (data: any) => {
+    add: async (data: any) => { // Add method at collection level
         await new Promise(resolve => setTimeout(resolve, 10));
         let newId = '';
         if (collectionName === 'users') {
@@ -271,7 +269,7 @@ const db = {
             saveMockJobsDb();
         } else if (collectionName === 'applications') {
             newId = `app-${applicationIdCounter++}`;
-            mockApplicationsDb[newId] = { ...data, id: newId, dateApplied: data.dateApplied || new Date().toISOString(), status: data.status || 'Pending' } as Application;
+            mockApplicationsDb[newId] = { ...data, id: newId, dateApplied: data.dateApplied || new Date().toISOString(), status: data.status || 'Pending', updatedAt: new Date().toISOString() } as Application;
             saveMockApplicationsDb();
         }
         // Return a mock DocumentReference-like object
@@ -389,6 +387,3 @@ const storage = {
 console.log("--- Using MOCK Firebase services with localStorage persistence ---");
 
 export { auth, db, storage };
-
-// Removed Firebase SDK imports and real initialization logic
-// The file now exclusively defines and exports mock objects
