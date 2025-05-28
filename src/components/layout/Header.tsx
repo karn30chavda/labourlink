@@ -86,7 +86,7 @@ export function Header() {
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none">{userData?.name || "User"}</p>
                       <p className="text-xs leading-none text-muted-foreground">
-                        {userData?.email || user.email || "No email"}
+                        {userData?.email || (user && user.email) || "No email"}
                       </p>
                     </div>
                   </DropdownMenuLabel>
@@ -106,7 +106,7 @@ export function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button asChild>
+              <Button asChild size="sm" className="mr-2">
                 <Link href="/login">
                   <LogIn className="mr-2 h-4 w-4" /> Login / Sign Up
                 </Link>
@@ -126,7 +126,7 @@ export function Header() {
 
       {/* Mobile Menu Dropdown (conditionally rendered) */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-16 inset-x-0 z-40 bg-background backdrop-blur supports-[backdrop-filter]:bg-background/90 border-b border-border/40 p-4 shadow-md">
+        <div className="md:hidden absolute top-16 inset-x-0 z-40 bg-background supports-[backdrop-filter]:bg-background/90 border-b border-border/40 p-4 shadow-md">
           <nav className="flex flex-col space-y-1">
             {siteConfig.mainNav.map((item) => (
               <Link
@@ -139,7 +139,7 @@ export function Header() {
               </Link>
             ))}
             
-            {user && ( // Show this section if user is authenticated
+            {user && ( 
               <>
                 <div className="my-2 border-t border-border/60"></div>
                 {userData && <DropdownMenuLabel className="px-3 pt-2 text-xs text-muted-foreground">Welcome, {userData.name}</DropdownMenuLabel>}
