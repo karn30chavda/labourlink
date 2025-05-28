@@ -1,5 +1,5 @@
 
-// --- MOCK AUTHENTICATION & FIRESTORE ---
+// --- MOCK AUTHENTICATION & FIRESTORE with localStorage persistence ---
 import type { UserProfile, Job, MockAuthUser, MockUserCredential, UserRole, Application } from '@/types';
 import { siteConfig } from '@/config/site';
 
@@ -8,6 +8,7 @@ const MOCK_AUTH_USER_STORAGE_KEY = 'mockAuthUser';
 const MOCK_USERS_DB_STORAGE_KEY = 'mockUsersDb';
 const MOCK_JOBS_DB_STORAGE_KEY = 'mockJobsDb';
 const MOCK_APPLICATIONS_DB_STORAGE_KEY = 'mockApplicationsDb';
+
 
 let currentMockUser: MockAuthUser | null = null;
 if (typeof window !== 'undefined') {
@@ -38,7 +39,7 @@ const initialMockUsersDb: { [uid: string]: UserProfile } = {
       planId: siteConfig.paymentPlans.labour[0].id,
       planType: siteConfig.paymentPlans.labour[0].interval,
       status: 'active',
-      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // Valid for 30 days
     }
   },
   "customerTestUID": {
@@ -49,7 +50,7 @@ const initialMockUsersDb: { [uid: string]: UserProfile } = {
       planType: 'free',
       validUntil: null,
       status: 'active',
-      jobPostLimit: 5,
+      jobPostLimit: 5, // Example limit
       jobPostCount: 0
     }
   },
@@ -67,25 +68,29 @@ const initialMockApplicationsDb: { [id: string]: Application } = {
 
 
 // --- Load data from localStorage or use initial mocks ---
-let mockUsersDb: { [uid: string]: UserProfile } = initialMockUsersDb;
-let mockJobsDb: { [id: string]: Job } = initialMockJobsDb;
-let mockApplicationsDb: { [id: string]: Application } = initialMockApplicationsDb;
+let mockUsersDb: { [uid: string]: UserProfile } = { ...initialMockUsersDb };
+let mockJobsDb: { [id: string]: Job } = { ...initialMockJobsDb };
+let mockApplicationsDb: { [id: string]: Application } = { ...initialMockApplicationsDb };
+
 
 if (typeof window !== 'undefined') {
   try {
     const storedUsers = localStorage.getItem(MOCK_USERS_DB_STORAGE_KEY);
     if (storedUsers) mockUsersDb = JSON.parse(storedUsers);
-  } catch (e) { console.error("Error parsing mockUsersDb from localStorage", e); }
+    else localStorage.setItem(MOCK_USERS_DB_STORAGE_KEY, JSON.stringify(mockUsersDb)); // Initialize if not present
+  } catch (e) { console.error("Error accessing mockUsersDb from localStorage", e); }
 
   try {
     const storedJobs = localStorage.getItem(MOCK_JOBS_DB_STORAGE_KEY);
     if (storedJobs) mockJobsDb = JSON.parse(storedJobs);
-  } catch (e) { console.error("Error parsing mockJobsDb from localStorage", e); }
+    else localStorage.setItem(MOCK_JOBS_DB_STORAGE_KEY, JSON.stringify(mockJobsDb)); // Initialize
+  } catch (e) { console.error("Error accessing mockJobsDb from localStorage", e); }
 
   try {
     const storedApplications = localStorage.getItem(MOCK_APPLICATIONS_DB_STORAGE_KEY);
     if (storedApplications) mockApplicationsDb = JSON.parse(storedApplications);
-  } catch (e) { console.error("Error parsing mockApplicationsDb from localStorage", e); }
+    else localStorage.setItem(MOCK_APPLICATIONS_DB_STORAGE_KEY, JSON.stringify(mockApplicationsDb)); // Initialize
+  } catch (e) { console.error("Error accessing mockApplicationsDb from localStorage", e); }
 }
 
 // --- Helper functions to save to localStorage ---
@@ -126,15 +131,15 @@ const auth = {
       if (authStateListener) {
         authStateListener(currentMockUser);
       }
-    }, 50); 
+    }, 50); // Simulate async nature
     return () => {
       authStateListener = null;
     };
   },
   signInWithEmailAndPassword: async (email: string, password: string): Promise<MockUserCredential> => {
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setTimeout(resolve, 20)); // Simulate async
     for (const uid in mockUsersDb) {
-      if (mockUsersDb[uid].email === email && password === "password") {
+      if (mockUsersDb[uid].email === email && password === "password") { // Simplified password check
         currentMockUser = { uid, email, displayName: mockUsersDb[uid].name };
         if (typeof window !== 'undefined') {
           localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(currentMockUser));
@@ -146,20 +151,21 @@ const auth = {
     throw new Error("Mock Auth: Invalid credentials. (Hint: Use 'password' for any mock user).");
   },
   createUserWithEmailAndPassword: async (email: string, password: string): Promise<MockUserCredential> => {
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setTimeout(resolve, 20)); // Simulate async
     if (Object.values(mockUsersDb).find(u => u.email === email)) {
       throw new Error("Mock Auth: Email already in use.");
     }
     const uid = `mockUID-${Date.now()}`;
-    currentMockUser = { uid, email, displayName: '' }; 
+    currentMockUser = { uid, email, displayName: '' }; // DisplayName will be set from profile
      if (typeof window !== 'undefined') {
         localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(currentMockUser));
     }
+    // Note: User profile creation is now handled in AuthContext after this returns
     if (authStateListener) authStateListener(currentMockUser);
     return { user: currentMockUser };
   },
   signOut: async (): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setTimeout(resolve, 20)); // Simulate async
     currentMockUser = null;
     if (typeof window !== 'undefined') {
       localStorage.removeItem(MOCK_AUTH_USER_STORAGE_KEY);
@@ -175,7 +181,7 @@ const auth = {
           } catch (e) { return null; }
         }
     }
-    return currentMockUser;
+    return currentMockUser; // Fallback if localStorage is not available or empty
   }
 };
 // --- End of Mock Auth ---
@@ -211,7 +217,7 @@ const db = {
             mockUsersDb[id] = { ...data, uid: id, createdAt: data.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() } as UserProfile;
             saveMockUsersDb();
           } else if (collectionName === 'jobs') {
-            mockJobsDb[id] = { ...data, id, status: data.status || 'open', approvedByAdmin: data.approvedByAdmin !== undefined ? data.approvedByAdmin : true, createdAt: data.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() } as Job;
+            mockJobsDb[id] = { ...data, id, status: 'open', approvedByAdmin: true, createdAt: data.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() } as Job;
             saveMockJobsDb();
           } else if (collectionName === 'applications') {
             mockApplicationsDb[id] = { ...data, id, dateApplied: data.dateApplied || new Date().toISOString(), status: data.status || 'Pending' } as Application;
@@ -224,11 +230,11 @@ const db = {
             mockUsersDb[id] = { ...mockUsersDb[id], ...data, updatedAt: new Date().toISOString() };
             saveMockUsersDb();
           } else if (collectionName === 'jobs' && mockJobsDb[id]) {
-            mockJobsDb[id] = {
+            mockJobsDb[id] = { // When a job is updated, assume it needs re-approval
               ...mockJobsDb[id],
               ...data,
-              status: data.status || mockJobsDb[id].status,
-              approvedByAdmin: data.approvedByAdmin !== undefined ? data.approvedByAdmin : mockJobsDb[id].approvedByAdmin,
+              status: 'pending_approval', // Reset status
+              approvedByAdmin: false,       // Reset approval
               updatedAt: new Date().toISOString()
             };
             saveMockJobsDb();
@@ -240,8 +246,8 @@ const db = {
         delete: async () => { // This is a hard delete for mock, Firestore usually means soft delete
            await new Promise(resolve => setTimeout(resolve, 10));
            if (collectionName === 'users') { delete mockUsersDb[id]; saveMockUsersDb(); }
-           else if (collectionName === 'jobs') { 
-             if (mockJobsDb[id]) { // Soft delete for jobs for UI consistency
+           else if (collectionName === 'jobs') { // Soft delete for jobs for UI consistency
+             if (mockJobsDb[id]) {
                 mockJobsDb[id].status = 'deleted';
                 mockJobsDb[id].updatedAt = new Date().toISOString();
                 saveMockJobsDb();
@@ -255,11 +261,12 @@ const db = {
         await new Promise(resolve => setTimeout(resolve, 10));
         let newId = '';
         if (collectionName === 'users') {
-            newId = data.uid || `user-${Date.now()}`; 
+            newId = data.uid || `user-${Date.now()}`; // Use provided uid if exists (from auth)
             mockUsersDb[newId] = { ...data, uid: newId, createdAt: data.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() } as UserProfile;
             saveMockUsersDb();
         } else if (collectionName === 'jobs') {
             newId = `job-${jobIdCounter++}`;
+            // Ensure new jobs posted by customers are set to 'open' and 'approvedByAdmin: true' for mock purposes
             mockJobsDb[newId] = { ...data, id: newId, status: 'open', approvedByAdmin: true, createdAt: data.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() } as Job;
             saveMockJobsDb();
         } else if (collectionName === 'applications') {
@@ -267,14 +274,32 @@ const db = {
             mockApplicationsDb[newId] = { ...data, id: newId, dateApplied: data.dateApplied || new Date().toISOString(), status: data.status || 'Pending' } as Application;
             saveMockApplicationsDb();
         }
+        // Return a mock DocumentReference-like object
         return {
             id: newId,
-            get: async () => ({ id: newId, data: () => data, exists: () => true }) // Simplified mock DocumentReference
+            get: async () => ({ id: newId, data: () => data, exists: () => true })
         };
     },
-    // @ts-ignore
+    get: async () => { // Added .get() at the collection level
+        await new Promise(resolve => setTimeout(resolve, 10));
+        let storeToSearch: any[];
+        if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
+        else if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
+        else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
+        else storeToSearch = [];
+
+        return {
+            empty: storeToSearch.length === 0,
+            docs: storeToSearch.map(doc => ({
+            id: (doc as any).id || (doc as any).uid,
+            data: () => ({...doc})
+            })),
+        };
+    },
+    // @ts-ignore // Keep ts-ignore if complex type for 'field' is hard to specify for all cases
     where: (field: keyof Job | keyof UserProfile | keyof Application, operator: string, value: any) => ({
-      where: (field2: keyof Job | keyof UserProfile | keyof Application, operator2: string, value2: any) => ({ // For multi-where queries
+      // Support for chaining another where (simple case)
+      where: (field2: keyof Job | keyof UserProfile | keyof Application, operator2: string, value2: any) => ({
          get: async () => {
           await new Promise(resolve => setTimeout(resolve, 10));
           let storeToSearch: any[];
@@ -336,16 +361,18 @@ const db = {
   })
 };
 
-// Mock Firebase Storage
+// Mock Firebase Storage (basic version)
 const storage = {
   ref: (path?: string) => ({
-    put: async (file: File) => { 
+    put: async (file: File) => { // Simulate file upload
       await new Promise(resolve => setTimeout(resolve, 50));
+      // In a real scenario, you'd upload the file and get a URL
       return {
         snapshot: {
           ref: {
             getDownloadURL: async () => {
               await new Promise(resolve => setTimeout(resolve, 20));
+              // Return a placeholder image URL
               return `https://placehold.co/100x100.png?text=MOCKIMG`; 
             }
           }
@@ -362,3 +389,6 @@ const storage = {
 console.log("--- Using MOCK Firebase services with localStorage persistence ---");
 
 export { auth, db, storage };
+
+// Removed Firebase SDK imports and real initialization logic
+// The file now exclusively defines and exports mock objects
