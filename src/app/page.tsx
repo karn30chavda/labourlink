@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle, Search, Briefcase, Users, Zap, UserPlus } from "lucide-react";
+import { Search, Briefcase, Users, Zap, UserPlus, CircleCheckBig } from "lucide-react"; // Added CircleCheckBig
 import Image from "next/image";
 import Link from "next/link";
 
@@ -99,7 +99,7 @@ export default function HomePage() {
             <Card className="shadow-lg hover:shadow-xl transition-shadow">
               <CardHeader>
                 <div className="mx-auto bg-primary/10 rounded-full p-3 w-fit mb-4">
-                  <CheckCircle className="h-8 w-8 text-primary" />
+                  <CircleCheckBig className="h-8 w-8 text-primary" /> {/* Corrected from CheckCircle */}
                 </div>
                 <CardTitle className="text-xl font-semibold">3. Connect & Get to Work</CardTitle>
               </CardHeader>
@@ -172,7 +172,7 @@ export default function HomePage() {
                 width={600}
                 height={400}
                 className="rounded-lg shadow-xl object-cover w-full"
-                data-ai-hint="construction site"
+                data-ai-hint="labour image" 
               />
             </div>
             <div className="space-y-4">
@@ -181,15 +181,15 @@ export default function HomePage() {
               </p>
               <ul className="space-y-2">
                 <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                  <CircleCheckBig className="h-5 w-5 text-green-500 mr-2" /> {/* Corrected from CheckCircle */}
                   Verified profiles for trust and safety.
                 </li>
                 <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                  <CircleCheckBig className="h-5 w-5 text-green-500 mr-2" /> {/* Corrected from CheckCircle */}
                   Advanced search filters to find the perfect match.
                 </li>
                 <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                  <CircleCheckBig className="h-5 w-5 text-green-500 mr-2" /> {/* Corrected from CheckCircle */}
                   Secure and straightforward subscription options.
                 </li>
               </ul>
