@@ -244,7 +244,13 @@ export default function CustomerDashboardPage() {
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg">{job.title}</CardTitle>
                            <Badge variant={job.status === 'open' ? 'default' : job.status === 'pending_approval' ? 'secondary' : job.status === 'assigned' ? 'outline' : 'destructive'}
-                                  className={`${job.status === 'open' ? 'bg-green-500 text-white' : job.status === 'assigned' ? 'border-blue-500 text-blue-500' : job.status === 'pending_approval' ? 'bg-yellow-500 text-white' : ''}`}>
+                                  className={cn(
+                                    'whitespace-nowrap',
+                                    job.status === 'open' ? 'bg-green-500 text-white' : '',
+                                    job.status === 'assigned' ? 'border-blue-500 text-blue-500' : '',
+                                    job.status === 'pending_approval' ? 'bg-yellow-500 text-white text-center' : ''
+                                  )}
+                                >
                             {job.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                           </Badge>
                         </div>

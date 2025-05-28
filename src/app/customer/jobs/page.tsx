@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 export default function CustomerJobsPage() {
   const { userData } = useAuth();
@@ -87,7 +88,7 @@ export default function CustomerJobsPage() {
    const getStatusBadgeClass = (status: Job['status']) => {
     switch (status) {
       case 'open': return 'bg-green-500 text-white';
-      case 'pending_approval': return 'bg-yellow-500 text-white';
+      case 'pending_approval': return 'bg-yellow-500 text-white text-center';
       case 'assigned': case 'in_progress': return 'border-blue-500 text-blue-500';
       case 'completed': return 'bg-primary text-primary-foreground';
       default: return '';
@@ -139,7 +140,7 @@ export default function CustomerJobsPage() {
                       <CardTitle className="text-lg">{job.title}</CardTitle>
                       <Badge 
                         variant={getStatusBadgeVariant(job.status)}
-                        className={getStatusBadgeClass(job.status)}
+                        className={cn('whitespace-nowrap', getStatusBadgeClass(job.status))}
                       >
                         {job.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                       </Badge>
