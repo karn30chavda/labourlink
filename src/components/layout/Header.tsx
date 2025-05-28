@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, LogIn, LogOut, Menu, X } from "lucide-react"; 
+import { Building2, LogIn, LogOut, Menu, X, Sun, Moon } from "lucide-react"; 
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/hooks/use-auth";
@@ -98,7 +98,7 @@ export function Header() {
                       </Link>
                     </DropdownMenuItem>
                   ))}
-                  {(userData && userNavItems.length > 0) && <DropdownMenuSeparator />}
+                  {(user && userNavItems.length > 0) && <DropdownMenuSeparator />}
                   <DropdownMenuItem onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
@@ -116,7 +116,7 @@ export function Header() {
 
           {/* Mobile Menu Toggle Button (visible on mobile only) */}
           <div className="md:hidden ml-2">
-            <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+            <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="mr-2">
               {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               <span className="sr-only">Toggle menu</span>
             </Button>
@@ -139,12 +139,16 @@ export function Header() {
               </Link>
             ))}
             
-            {user && ( 
+            <div className="my-2 border-t border-border/60"></div>
+
+            {loading ? (
+                // Placeholder or skeleton for loading state in mobile menu if needed
+                <Skeleton className="h-8 w-full rounded-md my-1" /> 
+            ) : user ? ( 
               <>
-                <div className="my-2 border-t border-border/60"></div>
                 {userData && <DropdownMenuLabel className="px-3 pt-2 text-xs text-muted-foreground">Welcome, {userData.name}</DropdownMenuLabel>}
                 
-                {userData && userNavItems.length > 0 && userNavItems.map(item => (
+                {userNavItems.length > 0 && userNavItems.map(item => (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -163,11 +167,8 @@ export function Header() {
                   Logout
                 </button>
               </>
-            )}
-
-             {!user && !loading && (
+            ) : (
               <>
-                <div className="my-2 border-t border-border/60"></div>
                 <Link
                   href="/login"
                   className="flex items-center rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
@@ -178,13 +179,10 @@ export function Header() {
                 </Link>
               </>
             )}
-             {loading && (
-                <div className="my-2 border-t border-border/60"></div>
-                // Placeholder or skeleton for loading state in mobile menu if needed
-             )}
           </nav>
         </div>
       )}
     </header>
   );
 }
+
