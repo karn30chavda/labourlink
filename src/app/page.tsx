@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Search, Briefcase, Users, Zap, UserPlus, CircleCheckBig } from "lucide-react"; // Added CircleCheckBig
@@ -167,7 +168,7 @@ export default function HomePage() {
           <div className="grid md:grid-cols-2 gap-8 items-center">
             <div>
               <Image 
-                src="https://placehold.co/600x400.png"
+                src="https://images.unsplash.com/photo-1551135049-8a33b5883817?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMXx8TGFib3VyZXIlMjB8ZW58MHx8fHwxNzQ4NDM5Mjk1fDA&ixlib=rb-4.1.0&q=80&w=1080"
                 alt="Construction site with workers"
                 width={600}
                 height={400}
