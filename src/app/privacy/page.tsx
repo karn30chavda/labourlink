@@ -1,16 +1,26 @@
 
+"use client"; // Add "use client" to use hooks
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { useState, useEffect } from "react"; // Import hooks
 
 export default function PrivacyPage() {
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  useEffect(() => {
+    // This will only run on the client, after hydration
+    setLastUpdated(new Date().toLocaleDateString());
+  }, []);
+
   return (
     <div className="container mx-auto px-4 py-12">
       <Card className="max-w-3xl mx-auto shadow-lg">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold text-primary">Privacy Policy</CardTitle>
           <CardDescription className="text-lg text-muted-foreground">
-            Last Updated: {new Date().toLocaleDateString()}
+            Last Updated: {lastUpdated || "Loading..."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 text-muted-foreground leading-relaxed">
