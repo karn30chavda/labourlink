@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, LogIn, LogOut, UserPlus, LayoutDashboard, Menu, X } from "lucide-react";
+import { Building2, LogIn, LogOut, UserPlus, LayoutDashboard, Menu, X, Sun, Moon, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/hooks/use-auth";
@@ -22,12 +22,37 @@ import { usePathname } from 'next/navigation';
 export function Header() {
   const { user, userData, loading, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('light');
   const pathname = usePathname();
 
   useEffect(() => {
     // Close mobile menu on route change
     setIsMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const storedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    const preferredTheme = storedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    setCurrentTheme(preferredTheme);
+    if (preferredTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    setCurrentTheme(prevTheme => {
+      const newTheme = prevTheme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('theme', newTheme);
+      if (newTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      return newTheme;
+    });
+  };
 
   const getInitials = (name?: string) => {
     if (!name) return "NN";
@@ -67,8 +92,14 @@ export function Header() {
             ))}
           </nav>
 
+          {/* Theme Toggle Button */}
+          <Button variant="ghost" size="icon" onClick={toggleTheme} className="ml-2 md:ml-4">
+            {currentTheme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            <span className="sr-only">Toggle theme</span>
+          </Button>
+
           {/* Authentication Section (Login/Register or User Dropdown) */}
-          <div className="flex items-center space-x-2 ml-0 md:ml-6">
+          <div className="flex items-center space-x-2 ml-2">
             {loading ? (
               <Skeleton className="h-9 w-24 rounded-md" />
             ) : user && userData ? (
@@ -76,7 +107,7 @@ export function Header() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={userData.profilePhotoUrl || undefined} alt={userData.name || "User"} data-ai-hint="user profile" />
+                      <AvatarImage src={userData.profilePhotoUrl || undefined} alt={userData.name || "User"} data-ai-hint="user profile"/>
                       <AvatarFallback>{getInitials(userData.name)}</AvatarFallback>
                     </Avatar>
                   </Button>
@@ -120,7 +151,7 @@ export function Header() {
                   </Link>
                 </Button>
                  {/* Simplified for very small screens if needed, or rely on mobile menu */}
-                <Button variant="ghost" asChild className="sm:hidden">
+                <Button variant="ghost" size="icon" asChild className="sm:hidden">
                   <Link href="/login"><LogIn className="h-5 w-5" /></Link>
                 </Button>
                 <Button asChild size="icon" className="sm:hidden">
