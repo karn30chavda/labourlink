@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, LogIn, LogOut, Menu, X } from "lucide-react"; 
+import { Building2, LogIn, LogOut, Menu, X, UserCircle2, LayoutDashboard, Briefcase, CreditCard } from "lucide-react"; 
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,26 +26,34 @@ export function Header() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Close mobile menu on route change
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
   const getInitials = (name?: string) => {
-    if (!name) return "NN";
+    if (!name) return "U"; // Default for User if name is not yet available
     const names = name.split(' ');
-    if (names.length > 1) {
+    if (names.length > 1 && names[0] && names[names.length -1]) {
       return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
     }
     return name.substring(0, 2).toUpperCase();
   }
 
   const userRole = userData?.role;
-  const userNavItems = userRole && userData ? siteConfig.userNav[userRole] : [];
+  // Ensure userNavItems correctly uses icons from siteConfig
+  const userNavItems = userRole && userData ? siteConfig.userNav[userRole].map(item => {
+    let IconComponent;
+    if (item.title === "Dashboard") IconComponent = LayoutDashboard;
+    else if (item.title === "My Profile") IconComponent = UserCircle2;
+    else if (item.title === "My Applications" || item.title === "Post a Job" || item.title === "My Job Posts") IconComponent = Briefcase;
+    else if (item.title === "Subscription") IconComponent = CreditCard;
+    // Add more else if for other admin icons as needed
+    return { ...item, icon: IconComponent };
+  }) : [];
+
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 print:hidden">
       <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
-        {/* Logo and Site Name */}
         <Link href="/" className="flex items-center space-x-2 ml-2">
           <Building2 className="h-6 w-6 text-primary" />
           <span className="font-bold sm:inline-block text-lg">
@@ -53,9 +61,7 @@ export function Header() {
           </span>
         </Link>
 
-        {/* Right Aligned Items Wrapper */}
         <div className="flex items-center">
-          {/* Desktop Navigation (hidden on mobile) */}
           <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
             {siteConfig.mainNav.map((item) => (
               <Link
@@ -68,7 +74,6 @@ export function Header() {
             ))}
           </nav>
 
-          {/* Authentication Section (Login/Register or User Dropdown) - DESKTOP */}
           <div className="hidden md:flex items-center space-x-2 ml-4">
             {loading ? (
               <Skeleton className="h-9 w-24 rounded-md" />
@@ -77,7 +82,7 @@ export function Header() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full mr-2">
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={userData?.profilePhotoUrl || undefined} alt={userData?.name || "User"} data-ai-hint="user profile"/>
+                      <AvatarImage src={userData?.profilePhotoUrl || undefined} alt={userData?.name || "User"} data-ai-hint="user profile" />
                       <AvatarFallback>{getInitials(userData?.name)}</AvatarFallback>
                     </Avatar>
                   </Button>
@@ -116,7 +121,6 @@ export function Header() {
             )}
           </div>
 
-          {/* Mobile Menu Toggle Button (visible on mobile only) */}
           <div className="md:hidden ml-2">
             <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="mr-2">
               {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -126,9 +130,8 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile Menu Dropdown (conditionally rendered) */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-16 inset-x-0 z-40 bg-background border-b border-border/40 p-4 shadow-md">
+        <div className="md:hidden absolute top-16 inset-x-0 z-40 bg-background border-b border-border/40 p-4 shadow-md supports-[backdrop-filter]:bg-background/90">
           <nav className="flex flex-col space-y-1">
             {siteConfig.mainNav.map((item) => (
               <Link
@@ -160,7 +163,7 @@ export function Header() {
                     {item.title}
                   </Link>
                 ))}
-                {(user && userNavItems.length > 0) && <div className="my-2 border-t border-border/60"></div>}
+                {(userNavItems.length > 0) && <div className="my-2 border-t border-border/60"></div>}
                  <button
                   onClick={() => { logout(); setIsMobileMenuOpen(false); }}
                   className="flex items-center w-full text-left rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
@@ -187,3 +190,4 @@ export function Header() {
     </header>
   );
 }
+

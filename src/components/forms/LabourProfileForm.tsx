@@ -26,7 +26,9 @@ import type { UserProfile } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { db } from "@/lib/firebase"; 
+import { db, storage } from "@/lib/firebase"; 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UploadCloud } from "lucide-react";
 
 const labourProfileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -41,6 +43,8 @@ const labourProfileFormSchema = z.object({
   availability: z.boolean().default(false),
   currentWorkSites: z.string().optional(),
   pastWorkSites: z.string().optional(),
+  profilePhotoUrl: z.string().url().optional().nullable(),
+  newProfilePhoto: z.instanceof(File).optional().nullable(), // For handling the file input
 });
 
 type LabourProfileFormValues = z.infer<typeof labourProfileFormSchema>;
@@ -49,10 +53,11 @@ export function LabourProfileForm() {
   const { userData, refreshUserData } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const form = useForm<LabourProfileFormValues>({
     resolver: zodResolver(labourProfileFormSchema),
-    defaultValues: { // These are used for the initial render before userData might be available
+    defaultValues: {
       name: "",
       phone: "",
       roleType: "",
@@ -61,13 +66,14 @@ export function LabourProfileForm() {
       availability: false,
       currentWorkSites: "",
       pastWorkSites: "",
+      profilePhotoUrl: null,
+      newProfilePhoto: null,
     },
   });
 
   useEffect(() => {
     console.log("[LabourProfileForm] useEffect triggered. Current userData:", userData ? JSON.parse(JSON.stringify(userData)) : userData);
     if (userData) {
-      console.log("[LabourProfileForm] useEffect updating form with userData contents:", JSON.parse(JSON.stringify(userData)));
       const resetValues = {
         name: userData.name || "",
         phone: userData.phone || "",
@@ -77,15 +83,38 @@ export function LabourProfileForm() {
         availability: userData.availability || false,
         currentWorkSites: Array.isArray(userData.currentWorkSites) ? userData.currentWorkSites.join(", ") : userData.currentWorkSites || "",
         pastWorkSites: Array.isArray(userData.pastWorkSites) ? userData.pastWorkSites.join(", ") : userData.pastWorkSites || "",
+        profilePhotoUrl: userData.profilePhotoUrl || null,
+        newProfilePhoto: null, // Always reset file input
       };
       console.log("[LabourProfileForm] Resetting form with values:", JSON.parse(JSON.stringify(resetValues)));
       form.reset(resetValues);
+      if (userData.profilePhotoUrl) {
+        setImagePreview(userData.profilePhotoUrl);
+      } else {
+        setImagePreview(null);
+      }
     } else {
-      console.log("[LabourProfileForm] useEffect triggered but userData is null/undefined. Form will use defaultValues or previously set values if not explicitly reset to empty.");
-      // To ensure fields are cleared if userData becomes null after being populated, you might explicitly reset to defaults:
-      // form.reset({ name: "", phone: "", roleType: "", skills: [], city: "", availability: false, currentWorkSites: "", pastWorkSites: "" });
+        console.log("[LabourProfileForm] useEffect triggered but userData is null/undefined. Form will use defaultValues or previously set values if not explicitly reset to empty.");
+        form.reset({ name: "", phone: "", roleType: "", skills: [], city: "", availability: false, currentWorkSites: "", pastWorkSites: "", profilePhotoUrl: null, newProfilePhoto: null });
+        setImagePreview(null);
     }
-  }, [userData, form]); // form.reset is stable, dependency is primarily on userData
+  }, [userData, form]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      form.setValue("newProfilePhoto", file);
+      // Create a preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      form.setValue("newProfilePhoto", null);
+      setImagePreview(form.getValues("profilePhotoUrl")); // Revert to existing URL if file is cleared
+    }
+  };
 
   async function onSubmit(data: LabourProfileFormValues) {
     if (!userData?.uid) {
@@ -96,6 +125,22 @@ export function LabourProfileForm() {
     console.log("[LabourProfileForm] Submitting form data:", JSON.parse(JSON.stringify(data)));
     console.log("[LabourProfileForm] Submitting city:", data.city);
 
+    let uploadedPhotoUrl = data.profilePhotoUrl;
+
+    if (data.newProfilePhoto) {
+        try {
+            // Simulate upload to mock storage
+            const storageRef = storage.ref(`profilePictures/${userData.uid}/${data.newProfilePhoto.name}`);
+            const uploadTask = await storageRef.put(data.newProfilePhoto as File); // Cast to File for mock
+            uploadedPhotoUrl = await uploadTask.snapshot.ref.getDownloadURL();
+            toast({ title: "Profile Picture Updated", description: "New picture 'uploaded' (mock)." });
+        } catch (error) {
+            console.error("Mock image upload error:", error);
+            toast({ title: "Image Upload Failed", description: "Could not 'upload' image (mock).", variant: "destructive" });
+            setIsLoading(false);
+            return;
+        }
+    }
 
     const profileDataToUpdate: Partial<UserProfile> = {
       name: data.name,
@@ -106,15 +151,14 @@ export function LabourProfileForm() {
       availability: data.availability,
       currentWorkSites: data.currentWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
       pastWorkSites: data.pastWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
-      // updatedAt will be handled by the mock db
+      profilePhotoUrl: uploadedPhotoUrl,
     };
     
     console.log("[LabourProfileForm] profileDataToUpdate payload:", JSON.parse(JSON.stringify(profileDataToUpdate)));
 
-
     try {
       await db.collection("users").doc(userData.uid).update(profileDataToUpdate);
-      await refreshUserData(); // This fetches the latest userData and should trigger the useEffect
+      await refreshUserData(); 
       toast({
         title: "Profile Updated",
         description: "Your profile information has been successfully updated.",
@@ -128,8 +172,19 @@ export function LabourProfileForm() {
       });
     } finally {
       setIsLoading(false);
+      form.setValue("newProfilePhoto", null); // Clear file input after submission
     }
   }
+  
+  const getInitials = (name?: string) => {
+    if (!name) return "NN";
+    const names = name.split(' ');
+    if (names.length > 1) {
+      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  }
+
 
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-xl">
@@ -140,6 +195,50 @@ export function LabourProfileForm() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <div className="flex flex-col items-center space-y-4">
+              <Avatar className="h-32 w-32 border-4 border-primary shadow-lg">
+                <AvatarImage src={imagePreview || undefined} alt={userData?.name} data-ai-hint="profile preview" />
+                <AvatarFallback className="text-3xl">
+                  {getInitials(form.getValues("name") || userData?.name)}
+                </AvatarFallback>
+              </Avatar>
+              <FormField
+                control={form.control}
+                name="newProfilePhoto"
+                render={({ field }) => ( // We only need field.onChange from the render prop
+                  <FormItem className="w-full max-w-xs">
+                    <FormLabel htmlFor="profile-picture-upload" className="sr-only">Upload new profile picture</FormLabel>
+                    <FormControl>
+                      <div className="relative mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md hover:border-primary transition-colors">
+                        <div className="space-y-1 text-center">
+                          <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground" />
+                          <div className="flex text-sm text-muted-foreground">
+                            <label
+                              htmlFor="file-upload"
+                              className="relative cursor-pointer rounded-md font-medium text-primary hover:text-primary/80 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary"
+                            >
+                              <span>Upload a file</span>
+                              <Input 
+                                id="file-upload" 
+                                name="file-upload" 
+                                type="file" 
+                                className="sr-only" 
+                                accept="image/png, image/jpeg, image/jpg"
+                                onChange={handleFileChange} // Use custom handler
+                              />
+                            </label>
+                            <p className="pl-1">or drag and drop</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">PNG, JPG up to 2MB (mock)</p>
+                        </div>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
               name="name"
