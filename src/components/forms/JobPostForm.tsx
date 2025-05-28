@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,7 +25,7 @@ import type { Job } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { generateJobDescription as genJobDescAiFlow } from '@/ai/flows/job-description-generator';
-// import { collection, addDoc, serverTimestamp } from "firebase/firestore"; // Actual Firestore
+// import { collection, addDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore"; // Actual Firestore
 // import { db } from "@/lib/firebase"; // Actual Firestore
 import { mockFirestore } from "@/lib/firebase"; // Mock
 import { useRouter } from "next/navigation";
@@ -43,9 +44,10 @@ type JobPostFormValues = z.infer<typeof jobPostFormSchema>;
 
 interface JobPostFormProps {
   job?: Job; // Optional: for editing existing job
+  isEditing?: boolean;
 }
 
-export function JobPostForm({ job }: JobPostFormProps) {
+export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
   const { userData } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -56,11 +58,12 @@ export function JobPostForm({ job }: JobPostFormProps) {
     resolver: zodResolver(jobPostFormSchema),
     defaultValues: job ? {
       title: job.title,
-      description: job.description,
+      description: job.description || "", // Ensure description is not undefined
       requiredSkill: job.requiredSkill,
       location: job.location,
       duration: job.duration,
       budget: job.budget || "",
+      descriptionKeywords: "", // Keywords not stored with job, so reset
     } : {
       title: "",
       descriptionKeywords: "",
@@ -97,7 +100,7 @@ export function JobPostForm({ job }: JobPostFormProps) {
     }
     setIsLoading(true);
     
-    const jobData: Omit<Job, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'approvedByAdmin'> & { customerId: string, status: Job['status'], createdAt: any } = {
+    const jobPayload = {
       customerId: userData.uid,
       customerName: userData.name,
       title: data.title,
@@ -106,28 +109,27 @@ export function JobPostForm({ job }: JobPostFormProps) {
       location: data.location,
       duration: data.duration,
       budget: data.budget,
-      status: 'pending_approval', // Default status
-      createdAt: new Date(), // serverTimestamp(),
+      status: 'pending_approval', // Reset to pending approval on create/update
+      updatedAt: new Date(), // serverTimestamp(),
     };
 
     try {
-      if (job?.id) {
-        // Update existing job (not fully implemented for this example)
+      if (isEditing && job?.id) {
+        // Update existing job
         // const jobRef = doc(db, "jobs", job.id);
-        // await updateDoc(jobRef, { ...jobData, updatedAt: serverTimestamp() });
-        console.log("Mock update job:", job.id, jobData);
-        await mockFirestore.collection("jobs").doc(job.id).update({ ...jobData, updatedAt: new Date() });
+        // await updateDoc(jobRef, jobPayload);
+        await mockFirestore.collection("jobs").doc(job.id).update(jobPayload);
         toast({ title: "Job Updated", description: "Your job post has been updated and is pending re-approval." });
       } else {
         // Add new job
-        // await addDoc(collection(db, "jobs"), jobData);
-        await mockFirestore.collection("jobs").add(jobData);
+        // await addDoc(collection(db, "jobs"), { ...jobPayload, createdAt: serverTimestamp() });
+        await mockFirestore.collection("jobs").add({ ...jobPayload, createdAt: new Date() });
         toast({ title: "Job Posted", description: "Your job post has been submitted for approval." });
       }
-      router.push("/customer/dashboard"); // Or to a "my jobs" page
+      router.push("/customer/jobs"); // Redirect to the list of all jobs
     } catch (error: any) {
       toast({
-        title: job?.id ? "Update Failed" : "Posting Failed",
+        title: isEditing ? "Update Failed" : "Posting Failed",
         description: error.message || "An error occurred. Please try again.",
         variant: "destructive",
       });
@@ -139,8 +141,8 @@ export function JobPostForm({ job }: JobPostFormProps) {
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-xl">
       <CardHeader>
-        <CardTitle className="text-2xl font-bold">{job ? "Edit Job Post" : "Create a New Job Post"}</CardTitle>
-        <CardDescription>Fill in the details below to find the right talent for your project.</CardDescription>
+        <CardTitle className="text-2xl font-bold">{isEditing ? "Edit Job Post" : "Create a New Job Post"}</CardTitle>
+        <CardDescription>{isEditing ? "Update the details of your job post." : "Fill in the details below to find the right talent for your project."}</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -159,7 +161,7 @@ export function JobPostForm({ job }: JobPostFormProps) {
               )}
             />
 
-            {!job && ( // Only show AI generation for new jobs
+            {!isEditing && ( // Only show AI generation for new jobs
              <FormField
                 control={form.control}
                 name="descriptionKeywords"
@@ -280,7 +282,7 @@ export function JobPostForm({ job }: JobPostFormProps) {
             </div>
             <Button type="submit" className="w-full" disabled={isLoading || isAiGenerating}>
               {isLoading ? <Loader className="mr-2" size={16} /> : null}
-              {job ? "Update Job Post" : "Submit Job Post for Approval"}
+              {isEditing ? "Update Job Post" : "Submit Job Post for Approval"}
             </Button>
           </form>
         </Form>
@@ -288,3 +290,5 @@ export function JobPostForm({ job }: JobPostFormProps) {
     </Card>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -6,22 +7,27 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { matchLabor } from "@/ai/flows/labor-match";
-import type { Job, Labor, UserProfile } from "@/types";
+import type { Job, Labor } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { mockFirestore } from "@/lib/firebase"; // For fetching all jobs
-import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2 } from "lucide-react";
+import { mockFirestore } from "@/lib/firebase"; 
+import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 
-// Mock data for customer's job posts
-const mockCustomerJobs: Job[] = [
-  { id: 'jobC1', customerId: 'customerUID', title: 'Kitchen Renovation - Plumbing', requiredSkill: 'Plumbing', location: 'Downtown, MockCity', duration: '3 days', status: 'open', createdAt: '2024-07-21T10:00:00Z', approvedByAdmin: true },
-  { id: 'jobC2', customerId: 'customerUID', title: 'Office Electrical Setup', requiredSkill: 'Electrical', location: 'Business Park, MockCity', duration: '1 week', status: 'pending_approval', createdAt: '2024-07-22T14:30:00Z' },
-  { id: 'jobC3', customerId: 'customerUID', title: 'Garden Masonry Work', requiredSkill: 'Mason', location: 'Suburb, MockCity', duration: '5 days', status: 'assigned', createdAt: '2024-07-15T09:00:00Z', assignedLabourId: 'labourX', approvedByAdmin: true},
-];
-
-// Mock available labors for AI matching
+// Mock available labors for AI matching - This might come from a global state or be fetched
 const mockAvailableLabors: Labor[] = [
   { name: "Mike P.", role: "Plumber", skills: ["Pipe Fitting", "Drain Cleaning", "Fixture Installation"], availability: true, city: "MockCity", pastWorkingSites: ["Site A", "Site B"] },
   { name: "Sarah E.", role: "Electrician", skills: ["Wiring", "Panel Upgrades", "Lighting Installation"], availability: true, city: "MockCity", pastWorkingSites: ["Site C"] },
@@ -32,13 +38,42 @@ const mockAvailableLabors: Labor[] = [
 
 export default function CustomerDashboardPage() {
   const { userData } = useAuth();
+  const { toast } = useToast();
+  const [customerJobs, setCustomerJobs] = useState<Job[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
+
   const [selectedJobForMatch, setSelectedJobForMatch] = useState<Job | null>(null);
-  const [bestMatch, setBestMatch] = useState<any | null>(null); // Adjust 'any' to specific AI output type
+  const [bestMatch, setBestMatch] = useState<any | null>(null); 
   const [matchingLoading, setMatchingLoading] = useState(false);
   const [matchingError, setMatchingError] = useState<string | null>(null);
 
-  const openJobsCount = mockCustomerJobs.filter(job => job.status === 'open').length;
-  const pendingApprovalCount = mockCustomerJobs.filter(job => job.status === 'pending_approval').length;
+  useEffect(() => {
+    const fetchCustomerJobs = async () => {
+      if (!userData?.uid) return;
+      setLoadingJobs(true);
+      try {
+        // Mock fetching jobs for the current customer
+        // In a real app: query(collection(db, "jobs"), where("customerId", "==", userData.uid), orderBy("createdAt", "desc"))
+        const allJobsSnapshot = await mockFirestore.collection("jobs").where("status", "!=", "deleted").get(); // Mock fetching all
+        const jobsData = allJobsSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Job))
+            .filter(job => job.customerId === userData.uid) // Filter client-side for mock
+            .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime()); // Sort client-side
+        setCustomerJobs(jobsData);
+      } catch (error) {
+        console.error("Error fetching customer jobs:", error);
+        toast({ title: "Error", description: "Could not fetch your job posts.", variant: "destructive" });
+      } finally {
+        setLoadingJobs(false);
+      }
+    };
+
+    fetchCustomerJobs();
+  }, [userData?.uid, toast]);
+
+
+  const openJobsCount = customerJobs.filter(job => job.status === 'open').length;
+  const pendingApprovalCount = customerJobs.filter(job => job.status === 'pending_approval').length;
 
   const handleFindMatch = async (job: Job) => {
     setSelectedJobForMatch(job);
@@ -46,9 +81,8 @@ export default function CustomerDashboardPage() {
     setMatchingError(null);
     setBestMatch(null);
     try {
-      const jobPostDescription = `Title: ${job.title}\nDescription: ${job.description}\nRequired Skill: ${job.requiredSkill}\nLocation: ${job.location}\nDuration: ${job.duration}`;
+      const jobPostDescription = `Title: ${job.title}\nDescription: ${job.description || 'N/A'}\nRequired Skill: ${job.requiredSkill}\nLocation: ${job.location}\nDuration: ${job.duration}`;
       
-      // Filter available labors by city and required skill for better AI input
       const relevantLabors = mockAvailableLabors.filter(
         l => l.city === job.location && l.skills.includes(job.requiredSkill) && l.availability
       );
@@ -72,6 +106,19 @@ export default function CustomerDashboardPage() {
     }
   };
 
+  const handleDeleteJob = async (jobId: string) => {
+    try {
+      // Mock delete: In a real app, use Firestore's deleteDoc or update status to 'deleted'
+      // await deleteDoc(doc(db, "jobs", jobId));
+      await mockFirestore.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date() }); // Soft delete for mock
+      setCustomerJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
+      toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
+    } catch (error) {
+      console.error("Error deleting job:", error);
+      toast({ title: "Error", description: "Failed to delete the job post.", variant: "destructive" });
+    }
+  };
+
   return (
     <AuthGuard>
       <RoleGuard allowedRoles={["customer"]}>
@@ -82,7 +129,7 @@ export default function CustomerDashboardPage() {
               <p className="text-muted-foreground">Manage your job posts and find skilled labour.</p>
             </div>
             <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
-              <Link href="/customer/post-job">Post a New Job</Link>
+              <Link href="/customer/post-job"><PlusCircle className="mr-2 h-5 w-5" /> Post a New Job</Link>
             </Button>
           </div>
           
@@ -129,28 +176,29 @@ export default function CustomerDashboardPage() {
 
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Your Job Posts</CardTitle>
+              <CardTitle>Your Recent Job Posts</CardTitle>
               <CardDescription>Overview of your recent job listings. <Link href="/customer/jobs" className="text-primary hover:underline">Manage all jobs.</Link></CardDescription>
             </CardHeader>
             <CardContent>
-              {mockCustomerJobs.length === 0 ? (
+              {loadingJobs ? (
+                 <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading your jobs...</p></div>
+              ) : customerJobs.length === 0 ? (
                 <p className="text-muted-foreground">You haven&apos;t posted any jobs yet. <Link href="/customer/post-job" className="text-primary hover:underline">Post your first job!</Link></p>
               ) : (
                 <div className="space-y-4">
-                  {mockCustomerJobs.slice(0,3).map(job => (
+                  {customerJobs.slice(0,3).map(job => (
                     <Card key={job.id} className="hover:shadow-md transition-shadow">
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg">{job.title}</CardTitle>
                            <Badge variant={job.status === 'open' ? 'default' : job.status === 'pending_approval' ? 'secondary' : job.status === 'assigned' ? 'outline' : 'destructive'}
-                                  className={`${job.status === 'open' ? 'bg-green-500 text-white' : job.status === 'assigned' ? 'border-blue-500 text-blue-500' : ''}`}>
-                            {job.status.replace('_', ' ')}
+                                  className={`${job.status === 'open' ? 'bg-green-500 text-white' : job.status === 'assigned' ? 'border-blue-500 text-blue-500' : job.status === 'pending_approval' ? 'bg-yellow-500 text-white' : ''}`}>
+                            {job.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                           </Badge>
                         </div>
                         <CardDescription>Skill: {job.requiredSkill} | Location: {job.location} | Duration: {job.duration}</CardDescription>
                       </CardHeader>
                       <CardContent>
-                         {/* AI Match Section for this job */}
                         {selectedJobForMatch?.id === job.id && (
                           <div className="mt-4 p-4 border-t">
                             {matchingLoading && <div className="flex items-center"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Finding best match...</div>}
@@ -171,16 +219,32 @@ export default function CustomerDashboardPage() {
                       <CardFooter className="flex justify-end gap-2">
                         {job.status === 'open' && (
                           <Button variant="outline" size="sm" onClick={() => handleFindMatch(job)} disabled={matchingLoading && selectedJobForMatch?.id === job.id}>
-                            {matchingLoading && selectedJobForMatch?.id === job.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Users className="h-4 w-4 mr-1" />}
+                            {matchingLoading && selectedJobForMatch?.id === job.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Search className="h-4 w-4 mr-1" />}
                             Find Match (AI)
                           </Button>
                         )}
                         <Button variant="ghost" size="sm" asChild>
                           <Link href={`/customer/jobs/${job.id}/edit`}><Edit3 className="h-4 w-4" /></Link>
                         </Button>
-                         <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive/80">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive/80">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the job post &quot;{job.title}&quot;.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteJob(job.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </CardFooter>
                     </Card>
                   ))}
@@ -194,3 +258,5 @@ export default function CustomerDashboardPage() {
     </AuthGuard>
   );
 }
+
+    

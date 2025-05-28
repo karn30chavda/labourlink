@@ -1,3 +1,4 @@
+
 export type SiteConfig = typeof siteConfig
 
 export const siteConfig = {
@@ -46,7 +47,7 @@ export const siteConfig = {
     customer: [
       { title: "Dashboard", href: "/customer/dashboard" },
       { title: "Post a Job", href: "/customer/post-job" },
-      { title: "My Job Posts", href: "/customer/jobs" },
+      { title: "My Job Posts", href: "/customer/jobs" }, // Updated Link
       { title: "Subscription", href: "/customer/subscription" },
     ],
     admin: [
@@ -114,3 +115,5 @@ export const siteConfig = {
     ]
   }
 }
+
+    

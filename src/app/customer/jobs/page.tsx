@@ -1,0 +1,193 @@
+
+"use client";
+
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { RoleGuard } from "@/components/auth/RoleGuard";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/hooks/use-auth";
+import type { Job } from "@/types";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { mockFirestore } from "@/lib/firebase"; // For fetching jobs
+import { AlertCircle, Briefcase, Edit3, Eye, Loader2, PlusCircle, Search, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+export default function CustomerJobsPage() {
+  const { userData } = useAuth();
+  const { toast } = useToast();
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    const fetchJobs = async () => {
+      if (!userData?.uid) return;
+      setLoading(true);
+      try {
+        // Mock fetching jobs for the current customer, ordered by creation date
+        // In a real app: query(collection(db, "jobs"), where("customerId", "==", userData.uid), orderBy("createdAt", "desc"))
+        const allJobsSnapshot = await mockFirestore.collection("jobs").where("status", "!=", "deleted").get(); // Mock: fetch all, then filter
+        const jobsData = allJobsSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Job))
+            .filter(job => job.customerId === userData.uid) // Filter client-side for mock
+            .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime()); // Sort client-side
+        setJobs(jobsData);
+      } catch (error) {
+        console.error("Error fetching jobs:", error);
+        toast({ title: "Error", description: "Could not fetch your job posts.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJobs();
+  }, [userData?.uid, toast]);
+
+  const filteredJobs = jobs.filter(job =>
+    job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (job.description && job.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const handleDeleteJob = async (jobId: string) => {
+    try {
+      // Mock delete: In a real app, use Firestore's deleteDoc or update status to 'deleted'
+      // await deleteDoc(doc(db, "jobs", jobId));
+      await mockFirestore.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date() }); // Soft delete for mock
+      setJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
+      toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
+    } catch (error) {
+      console.error("Error deleting job:", error);
+      toast({ title: "Error", description: "Failed to delete the job post.", variant: "destructive" });
+    }
+  };
+
+  const getStatusBadgeVariant = (status: Job['status']) => {
+    switch (status) {
+      case 'open': return 'default';
+      case 'pending_approval': return 'secondary';
+      case 'assigned': case 'in_progress': return 'outline';
+      case 'completed': return 'default'; // Consider a different color like success
+      case 'cancelled_by_customer': case 'expired': return 'destructive';
+      default: return 'outline';
+    }
+  };
+   const getStatusBadgeClass = (status: Job['status']) => {
+    switch (status) {
+      case 'open': return 'bg-green-500 text-white';
+      case 'pending_approval': return 'bg-yellow-500 text-white';
+      case 'assigned': case 'in_progress': return 'border-blue-500 text-blue-500';
+      case 'completed': return 'bg-primary text-primary-foreground';
+      default: return '';
+    }
+  };
+
+
+  return (
+    <AuthGuard>
+      <RoleGuard allowedRoles={["customer"]}>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">My Job Posts</h1>
+              <p className="text-muted-foreground">Manage all your job listings.</p>
+            </div>
+            <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
+              <Link href="/customer/post-job"><PlusCircle className="mr-2 h-5 w-5" /> Post a New Job</Link>
+            </Button>
+          </div>
+
+          <div className="mb-6">
+            <Search className="absolute h-5 w-5 text-muted-foreground mt-2.5 ml-3 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search your jobs by title or description..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 p-2 border rounded-md focus:ring-primary focus:border-primary"
+            />
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center p-12"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3 text-lg">Loading your jobs...</p></div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="text-center py-12">
+              <Briefcase className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+              <h3 className="text-2xl font-semibold text-foreground">No Job Posts Found</h3>
+              <p className="text-muted-foreground mt-2">
+                {searchTerm ? "Try adjusting your search term." : <>You haven&apos;t posted any jobs yet. <Link href="/customer/post-job" className="text-primary hover:underline">Post your first job!</Link></>}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredJobs.map(job => (
+                <Card key={job.id} className="flex flex-col hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg">{job.title}</CardTitle>
+                      <Badge 
+                        variant={getStatusBadgeVariant(job.status)}
+                        className={getStatusBadgeClass(job.status)}
+                      >
+                        {job.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </Badge>
+                    </div>
+                    <CardDescription>
+                      Skill: {job.requiredSkill} | Location: {job.location}
+                      <br />
+                      Posted: {new Date(job.createdAt as string).toLocaleDateString()}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-grow">
+                    <p className="text-sm text-muted-foreground line-clamp-3">{job.description}</p>
+                  </CardContent>
+                  <CardFooter className="flex justify-end gap-2 border-t pt-4">
+                    {/* Add View Applicants button or other actions later */}
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/customer/jobs/${job.id}/edit`}><Edit3 className="mr-1 h-4 w-4" /> Edit</Link>
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                         <Button variant="outline" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/50 hover:border-destructive">
+                            <Trash2 className="mr-1 h-4 w-4" /> Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will mark the job post &quot;{job.title}&quot; as deleted.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDeleteJob(job.id)} className="bg-destructive hover:bg-destructive/90">
+                            Confirm Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </RoleGuard>
+    </AuthGuard>
+  );
+}
+
+    
