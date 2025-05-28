@@ -16,15 +16,15 @@ const loadFromLocalStorage = <T>(key: string, initialData: T): T => {
     try {
       const storedData = localStorage.getItem(key);
       if (storedData) {
-        console.log(`[MockDB Load] Loaded ${key} from localStorage:`, JSON.parse(JSON.stringify(JSON.parse(storedData))));
+        console.log(`[MockDB Load] Loaded ${key} from localStorage.`);
         return JSON.parse(storedData);
       } else {
         console.log(`[MockDB Load] No data for ${key} in localStorage, using initialData. Storing initialData now.`);
-        localStorage.setItem(key, JSON.stringify(initialData)); 
+        localStorage.setItem(key, JSON.stringify(initialData));
       }
     } catch (e) {
       console.error(`[MockDB Load] Error loading ${key} from localStorage:`, e);
-      localStorage.removeItem(key); 
+      localStorage.removeItem(key);
     }
   }
   return initialData;
@@ -44,7 +44,7 @@ const initialMockUsersDb: { [uid: string]: UserProfile } = {
       planId: siteConfig.paymentPlans.labour[0].id,
       planType: siteConfig.paymentPlans.labour[0].interval,
       status: 'active',
-      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() 
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     }
   },
   "customerTestUID": {
@@ -91,7 +91,11 @@ const saveMockApplicationsDb = () => {
   }
 };
 
-// --- Start of Mock Auth ---
+// --- Counters for new IDs ---
+let jobIdCounter = Object.keys(mockJobsDb).length > 0 ? Math.max(1, ...Object.keys(mockJobsDb).map(k => parseInt(k.replace(/^\D+/g, '') || '0'))) + 1 : 1;
+let applicationIdCounter = Object.keys(mockApplicationsDb).length > 0 ? Math.max(1, ...Object.keys(mockApplicationsDb).map(k => parseInt(k.replace(/^\D+/g, '') || '0'))) + 1 : 1;
+
+// --- Mock Auth ---
 let currentMockUser: MockAuthUser | null = null;
 if (typeof window !== 'undefined') {
   const storedUser = localStorage.getItem(MOCK_AUTH_USER_STORAGE_KEY);
@@ -106,7 +110,7 @@ let authStateListener: ((user: MockAuthUser | null) => void) | null = null;
 const auth = {
   onAuthStateChanged: (callback: (user: MockAuthUser | null) => void): (() => void) => {
     authStateListener = callback;
-    setTimeout(() => { 
+    setTimeout(() => {
       if (authStateListener) {
         let userFromStorage: MockAuthUser | null = null;
         if (typeof window !== 'undefined') {
@@ -149,8 +153,9 @@ const auth = {
       throw new Error("Mock Auth: Email already in use.");
     }
     const uid = `mockUID-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    currentMockUser = { uid, email, displayName: '' }; 
+    currentMockUser = { uid, email, displayName: '' };
     if (typeof window !== 'undefined') localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(currentMockUser));
+    // Note: UserProfile creation and saving to mockUsersDb happens in AuthContext
     if (authStateListener) authStateListener(currentMockUser);
     console.log("[MockAuth register] User created with UID:", uid, "Email:", email);
     return { user: currentMockUser };
@@ -164,16 +169,16 @@ const auth = {
   },
   get currentUser(): MockAuthUser | null {
     if (typeof window !== 'undefined') {
-        const storedUserStr = localStorage.getItem(MOCK_AUTH_USER_STORAGE_KEY);
-        if (storedUserStr) {
-            try {
-              return JSON.parse(storedUserStr);
-            } catch (e) {
-              console.error("Error parsing currentUser from localStorage:", e);
-              localStorage.removeItem(MOCK_AUTH_USER_STORAGE_KEY);
-              return null;
-            }
+      const storedUserStr = localStorage.getItem(MOCK_AUTH_USER_STORAGE_KEY);
+      if (storedUserStr) {
+        try {
+          return JSON.parse(storedUserStr);
+        } catch (e) {
+          console.error("Error parsing currentUser from localStorage:", e);
+          localStorage.removeItem(MOCK_AUTH_USER_STORAGE_KEY);
+          return null;
         }
+      }
     }
     return null;
   }
@@ -182,10 +187,6 @@ const auth = {
 
 
 // --- MOCK FIRESTORE (USERS, JOBS, APPLICATIONS) ---
-let jobIdCounter = Object.keys(mockJobsDb).length > 0 ? Math.max(0,...Object.keys(mockJobsDb).map(k => parseInt(k.replace( /^\D+/g, '') || '0'))) + 1 : 1;
-let applicationIdCounter = Object.keys(mockApplicationsDb).length > 0 ? Math.max(0, ...Object.keys(mockApplicationsDb).map(k => parseInt(k.replace( /^\D+/g, '') || '0'))) + 1 : 1;
-
-
 const db = {
   collection: (collectionName: string) => {
     console.log(`[MockDB] Accessing collection: ${collectionName}`);
@@ -207,10 +208,10 @@ const db = {
 
             const docData = dataStore[id];
             if (docData) {
-              console.log(`[MockDB Get Doc] Document found in ${collectionName} for ID ${id}:`, JSON.parse(JSON.stringify(docData)));
-              return { exists: () => true, data: () => ({...docData}), id };
+              // console.log(`[MockDB Get Doc] Document found in ${collectionName} for ID ${id}:`, JSON.parse(JSON.stringify(docData)));
+              return { exists: () => true, data: () => ({ ...docData }), id };
             }
-            console.log(`[MockDB Get Doc] Document NOT found in ${collectionName} for ID ${id}`);
+            // console.log(`[MockDB Get Doc] Document NOT found in ${collectionName} for ID ${id}`);
             return { exists: () => false, data: () => null, id };
           },
           set: async (data: any) => {
@@ -238,9 +239,9 @@ const db = {
               console.log(`[MockDB Update] User ${id} after:`, JSON.parse(JSON.stringify(mockUsersDb[id])));
               saveMockUsersDb();
             } else if (collectionName === 'jobs' && mockJobsDb[id]) {
-               console.log(`[MockDB Update] Job ${id} before:`, JSON.parse(JSON.stringify(mockJobsDb[id])));
+              console.log(`[MockDB Update] Job ${id} before:`, JSON.parse(JSON.stringify(mockJobsDb[id])));
               mockJobsDb[id] = { ...mockJobsDb[id], ...data, updatedAt: currentTimestamp };
-               console.log(`[MockDB Update] Job ${id} after:`, JSON.parse(JSON.stringify(mockJobsDb[id])));
+              console.log(`[MockDB Update] Job ${id} after:`, JSON.parse(JSON.stringify(mockJobsDb[id])));
               saveMockJobsDb();
             } else if (collectionName === 'applications' && mockApplicationsDb[id]) {
               console.log(`[MockDB Update] Application ${id} before:`, JSON.parse(JSON.stringify(mockApplicationsDb[id])));
@@ -252,95 +253,95 @@ const db = {
             }
           },
           delete: async () => {
-             await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
-             if (collectionName === 'users') { delete mockUsersDb[id]; saveMockUsersDb(); }
-             else if (collectionName === 'jobs') {
-               if (mockJobsDb[id]) {
-                  mockJobsDb[id].status = 'deleted'; 
-                  mockJobsDb[id].updatedAt = new Date().toISOString();
-                  saveMockJobsDb();
-               }
-             }
-             else if (collectionName === 'applications') { delete mockApplicationsDb[id]; saveMockApplicationsDb(); }
-             console.log(`[MockDB Delete] Deleted/Marked as deleted doc ID ${id} from ${collectionName}`);
+            await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+            if (collectionName === 'users') { delete mockUsersDb[id]; saveMockUsersDb(); }
+            else if (collectionName === 'jobs') {
+              if (mockJobsDb[id]) {
+                mockJobsDb[id].status = 'deleted';
+                mockJobsDb[id].updatedAt = new Date().toISOString();
+                saveMockJobsDb();
+              }
+            }
+            else if (collectionName === 'applications') { delete mockApplicationsDb[id]; saveMockApplicationsDb(); }
+            console.log(`[MockDB Delete] Deleted/Marked as deleted doc ID ${id} from ${collectionName}`);
           }
         };
       },
       add: async (data: any) => {
-          await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
-          let newId = '';
-          const timestamp = new Date().toISOString();
-          if (collectionName === 'users') {
-              newId = data.uid || `mockUID-${Date.now()}-${Math.random().toString(36).substring(2,9)}`;
-              mockUsersDb[newId] = { ...data, uid: newId, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as UserProfile;
-              saveMockUsersDb();
-          } else if (collectionName === 'jobs') {
-              newId = `job-${jobIdCounter++}`;
-              mockJobsDb[newId] = { ...data, id: newId, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as Job;
-              saveMockJobsDb();
-          } else if (collectionName === 'applications') {
-              newId = `app-${applicationIdCounter++}`;
-              mockApplicationsDb[newId] = { ...data, id: newId, dateApplied: data.dateApplied || timestamp, updatedAt: timestamp } as Application;
-              saveMockApplicationsDb();
-          }
-          console.log(`[MockDB Add] Added to ${collectionName} with new ID ${newId}:`, JSON.parse(JSON.stringify(data)));
-          return {
-              id: newId,
-              get: async () => ({ id: newId, data: () => ({...data}), exists: () => true }) 
-          };
+        await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+        let newId = '';
+        const timestamp = new Date().toISOString();
+        if (collectionName === 'users') {
+          newId = data.uid || `mockUID-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          mockUsersDb[newId] = { ...data, uid: newId, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as UserProfile;
+          saveMockUsersDb();
+        } else if (collectionName === 'jobs') {
+          newId = `job-${jobIdCounter++}`;
+          mockJobsDb[newId] = { ...data, id: newId, createdAt: data.createdAt || timestamp, updatedAt: timestamp } as Job;
+          saveMockJobsDb();
+        } else if (collectionName === 'applications') {
+          newId = `app-${applicationIdCounter++}`;
+          mockApplicationsDb[newId] = { ...data, id: newId, dateApplied: data.dateApplied || timestamp, updatedAt: timestamp } as Application;
+          saveMockApplicationsDb();
+        }
+        console.log(`[MockDB Add] Added to ${collectionName} with new ID ${newId}:`, JSON.parse(JSON.stringify(data)));
+        return {
+          id: newId,
+          get: async () => ({ id: newId, data: () => ({ ...data }), exists: () => true })
+        };
       },
-      get: async () => { 
-          await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
-          let storeToSearch: any[];
-          if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
-          else if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
-          else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
-          else storeToSearch = [];
-          
-          console.log(`[MockDB Get All Docs from Collection] Fetching all from ${collectionName}. Found ${storeToSearch.length} items.`);
-          return {
-              empty: storeToSearch.length === 0,
-              docs: storeToSearch.map(doc => ({
-              id: (doc as any).id || (doc as any).uid,
-              data: () => ({...doc}),
-              exists: () => true 
-              })),
-          };
+      get: async () => { // For collection.get()
+        await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+        let storeToSearch: any[];
+        if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
+        else if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
+        else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
+        else storeToSearch = [];
+
+        console.log(`[MockDB Get All Docs from Collection] Fetching all from ${collectionName}. Found ${storeToSearch.length} items.`);
+        return {
+          empty: storeToSearch.length === 0,
+          docs: storeToSearch.map(doc => ({
+            id: (doc as any).id || (doc as any).uid,
+            data: () => ({ ...doc }),
+            exists: () => true
+          })),
+        };
       },
       where: (field: keyof Job | keyof UserProfile | keyof Application, operator: string, value: any) => {
         console.log(`[MockDB Where] Querying ${collectionName} where ${String(field)} ${operator} ${value}`);
         return {
-            get: async () => {
-                await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
-                let storeToSearch: any[];
-                if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
-                else if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
-                else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
-                else storeToSearch = [];
+          get: async () => {
+            await new Promise(resolve => setTimeout(resolve, MOCK_DB_DELAY));
+            let storeToSearch: any[];
+            if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
+            else if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
+            else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
+            else storeToSearch = [];
 
-                const results = storeToSearch.filter(doc => {
-                  const docValue = doc[field as keyof typeof doc];
-                  if (operator === '==') return docValue === value;
-                  if (operator === '!=') return docValue !== value;
-                  if (operator === 'array-contains' && Array.isArray(docValue)) return docValue.includes(value);
-                  // Add more operators as needed for mock
-                  return false;
-                });
-                console.log(`[MockDB Where Get] Found ${results.length} results for query.`);
-                return {
-                    empty: results.length === 0,
-                    docs: results.map(doc => ({
-                        id: (doc as any).id || (doc as any).uid,
-                        data: () => ({...doc}),
-                        exists: () => true 
-                    })),
-                };
-            } // Closes get method within where's return object
+            const results = storeToSearch.filter(doc => {
+              const docValue = doc[field as keyof typeof doc];
+              if (operator === '==') return docValue === value;
+              if (operator === '!=') return docValue !== value;
+              if (operator === 'array-contains' && Array.isArray(docValue)) return docValue.includes(value);
+              // Add more operators as needed for mock
+              return false;
+            });
+            console.log(`[MockDB Where Get] Found ${results.length} results for query.`);
+            return {
+              empty: results.length === 0,
+              docs: results.map(doc => ({
+                id: (doc as any).id || (doc as any).uid,
+                data: () => ({ ...doc }),
+                exists: () => true
+              })),
+            };
+          } // Closes get method within where's return object
         }; // Closes where's return object
-      } // Closes where method
-    }; // Closes object returned by collection()
-  } // Closes collection method
-}; // Closes db object
+      }  // Closes where method
+    };   // Closes object returned by collection()
+  }     // Closes collection method
+};      // Closes db object
 
 // Mock Firebase Storage (basic version, no actual upload/download)
 const storage = {
