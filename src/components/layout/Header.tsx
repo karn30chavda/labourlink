@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, LogIn, LogOut, UserPlus, LayoutDashboard, Menu, X, Sun, Moon, Eye, EyeOff } from "lucide-react";
+import { Building2, LogIn, LogOut, UserPlus, LayoutDashboard, Menu, X, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/hooks/use-auth";
@@ -102,7 +102,7 @@ export function Header() {
           <div className="flex items-center space-x-2 ml-2">
             {loading ? (
               <Skeleton className="h-9 w-24 rounded-md" />
-            ) : user ? ( // Changed condition: if Firebase user exists, show dropdown
+            ) : user ? ( // Firebase user exists, show dropdown
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full">
@@ -197,10 +197,11 @@ export function Header() {
                   </Link>
                 ))}
                 <div className="my-2 border-t border-border/60"></div>
-                 <button // Changed to button for onClick logout
+                 <button 
                   onClick={() => { logout(); setIsMobileMenuOpen(false); }}
-                  className="block w-full text-left rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+                  className="flex items-center w-full text-left rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
                 >
+                  <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </button>
               </>
@@ -210,16 +211,18 @@ export function Header() {
                 <div className="my-2 border-t border-border/60"></div>
                 <Link
                   href="/login"
-                  className="block rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+                  className="flex items-center rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
+                  <LogIn className="mr-2 h-4 w-4" />
                   Login
                 </Link>
                 <Link
                   href="/register"
-                  className="block rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+                  className="flex items-center rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
+                  <UserPlus className="mr-2 h-4 w-4" />
                   Register
                 </Link>
               </>
