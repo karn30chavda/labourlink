@@ -7,11 +7,11 @@ import { Building2 } from "lucide-react";
 import { useEffect, useState } from 'react';
 
 export function Footer() {
-  const [currentYear, setCurrentYear] = useState<number | null>(null);
+  const [currentYear, setCurrentYear] = useState<string>(""); // Initialize with empty string
 
   useEffect(() => {
     // This ensures this code runs only on the client, after initial hydration
-    setCurrentYear(new Date().getFullYear());
+    setCurrentYear(new Date().getFullYear().toString());
   }, []);
 
 
@@ -22,7 +22,7 @@ export function Footer() {
           {/* Reverted className: removed md:ml-2 */}
           <Building2 className="h-6 w-6 text-primary hidden md:block" />
           <p className="text-center text-sm leading-loose text-muted-foreground md:text-left">
-            &copy; {currentYear || new Date().getFullYear()} {siteConfig.name}. All rights reserved.
+            &copy; {currentYear} {siteConfig.name}. All rights reserved.
           </p>
         </div>
         <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 md:justify-end">
@@ -40,4 +40,3 @@ export function Footer() {
     </footer>
   );
 }
-
