@@ -1,11 +1,10 @@
+
 "use client";
 
 import { LabourCard } from "@/components/labour/LabourCard";
 import type { UserProfile } from "@/types";
 import { useEffect, useState } from "react";
-// import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-// import { db } from "@/lib/firebase";
-import { mockFirestore } from "@/lib/firebase"; // MOCK
+import { db } from "@/lib/firebase"; 
 import { PageLoader } from "@/components/ui/loader";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,25 +28,15 @@ export default function SearchLabourPage() {
     const fetchLabours = async () => {
       setLoading(true);
       try {
-        // const laboursQuery = query(
-        //   collection(db, "users"),
-        //   where("role", "==", "labour")
-        //   // Add orderBy for rating or last active if available
-        // );
-        // const querySnapshot = await getDocs(laboursQuery);
-        // const laboursData = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-        
-        // MOCK implementation:
-        const querySnapshot = await mockFirestore.collection("users")
+        const laboursSnapshot = await db.collection("users")
                                 .where("role", "==", "labour")
                                 .get();
-        const laboursData = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+        const laboursData = laboursSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
         
         setLabours(laboursData);
         setFilteredLabours(laboursData);
       } catch (error) {
         console.error("Error fetching labours:", error);
-        // Handle error
       } finally {
         setLoading(false);
       }
@@ -115,7 +104,6 @@ export default function SearchLabourPage() {
                 <SelectValue placeholder="All Skills" />
               </SelectTrigger>
               <SelectContent>
-                {/* <SelectItem value="">All Skills</SelectItem> */} {/* Removed this line */}
                 {siteConfig.skills.map(skill => (
                   <SelectItem key={skill} value={skill}>{skill}</SelectItem>
                 ))}
@@ -129,7 +117,6 @@ export default function SearchLabourPage() {
                 <SelectValue placeholder="All Cities" />
               </SelectTrigger>
               <SelectContent>
-                {/* <SelectItem value="">All Cities</SelectItem> */} {/* Removed this line */}
                 {siteConfig.cities.map(city => (
                   <SelectItem key={city} value={city}>{city}</SelectItem>
                 ))}

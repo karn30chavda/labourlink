@@ -1,11 +1,10 @@
+
 "use client";
 
 import { JobCard } from "@/components/jobs/JobCard";
 import type { Job } from "@/types";
 import { useEffect, useState } from "react";
-// import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-// import { db } from "@/lib/firebase";
-import { mockFirestore } from "@/lib/firebase"; // MOCK
+import { db } from "@/lib/firebase"; 
 import { PageLoader } from "@/components/ui/loader";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,30 +24,20 @@ export default function JobsPage() {
     const fetchJobs = async () => {
       setLoading(true);
       try {
-        // const jobsQuery = query(
-        //   collection(db, "jobs"),
-        //   where("status", "==", "open"), // Only show open jobs that are approved
-        //   where("approvedByAdmin", "==", true),
-        //   orderBy("createdAt", "desc")
-        // );
-        // const querySnapshot = await getDocs(jobsQuery);
-        // const jobsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
-        
-        // MOCK implementation:
-        const querySnapshot = await mockFirestore.collection("jobs")
+        const jobsSnapshot = await db.collection("jobs")
                                 .where("status", "==", "open")
-                                // .where("approvedByAdmin", "==", true) // Mock can't handle multiple wheres easily
-                                .get();
+                                .get(); // In mock, 'approvedByAdmin' is harder to chain, filter client-side
 
-        const jobsData = querySnapshot.docs
+        const jobsData = jobsSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as Job))
-          .filter(job => job.approvedByAdmin !== false); // Assuming approvedByAdmin is true or undefined
+          .filter(job => job.approvedByAdmin !== false) // Assuming approvedByAdmin is true or undefined for approved
+          .sort((a,b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
+
 
         setJobs(jobsData);
         setFilteredJobs(jobsData);
       } catch (error) {
         console.error("Error fetching jobs:", error);
-        // Handle error (e.g., show toast)
       } finally {
         setLoading(false);
       }
@@ -61,7 +50,7 @@ export default function JobsPage() {
     if (searchTerm) {
       tempJobs = tempJobs.filter(job =>
         job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        job.description.toLowerCase().includes(searchTerm.toLowerCase())
+        (job.description && job.description.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
     if (selectedSkill) {
@@ -112,7 +101,6 @@ export default function JobsPage() {
                 <SelectValue placeholder="All Skills" />
               </SelectTrigger>
               <SelectContent>
-                {/* <SelectItem value="">All Skills</SelectItem> */} {/* Removed this line */}
                 {siteConfig.skills.map(skill => (
                   <SelectItem key={skill} value={skill}>{skill}</SelectItem>
                 ))}
@@ -126,7 +114,6 @@ export default function JobsPage() {
                 <SelectValue placeholder="All Locations" />
               </SelectTrigger>
               <SelectContent>
-                {/* <SelectItem value="">All Locations</SelectItem> */} {/* Removed this line */}
                 {siteConfig.cities.map(city => (
                   <SelectItem key={city} value={city}>{city}</SelectItem>
                 ))}

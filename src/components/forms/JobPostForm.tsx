@@ -25,9 +25,7 @@ import type { Job } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { generateJobDescription as genJobDescAiFlow } from '@/ai/flows/job-description-generator';
-// import { collection, addDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore"; // Actual Firestore
-// import { db } from "@/lib/firebase"; // Actual Firestore
-import { mockFirestore } from "@/lib/firebase"; // Mock
+import { db } from "@/lib/firebase"; // Using new mock db
 import { useRouter } from "next/navigation";
 
 const jobPostFormSchema = z.object({
@@ -58,12 +56,12 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     resolver: zodResolver(jobPostFormSchema),
     defaultValues: job ? {
       title: job.title,
-      description: job.description || "", // Ensure description is not undefined
+      description: job.description || "", 
       requiredSkill: job.requiredSkill,
       location: job.location,
       duration: job.duration,
       budget: job.budget || "",
-      descriptionKeywords: "", // Keywords not stored with job, so reset
+      descriptionKeywords: "", 
     } : {
       title: "",
       descriptionKeywords: "",
@@ -87,6 +85,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       form.setValue("description", result.jobDescription);
       toast({ title: "Description Generated!", description: "AI has drafted a job description for you." });
     } catch (error) {
+      console.error("AI Generation Error:", error);
       toast({ title: "AI Generation Failed", description: "Could not generate description. Please try again or write manually.", variant: "destructive" });
     } finally {
       setIsAiGenerating(false);
@@ -100,7 +99,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     }
     setIsLoading(true);
     
-    const jobPayload = {
+    const jobPayload: Omit<Job, 'id' | 'createdAt'> & { updatedAt: Date } = {
       customerId: userData.uid,
       customerName: userData.name,
       title: data.title,
@@ -109,25 +108,22 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       location: data.location,
       duration: data.duration,
       budget: data.budget,
-      status: 'pending_approval', // Reset to pending approval on create/update
-      updatedAt: new Date(), // serverTimestamp(),
+      status: 'pending_approval', 
+      updatedAt: new Date(),
+      approvedByAdmin: false, // Default for new/edited jobs
     };
 
     try {
       if (isEditing && job?.id) {
-        // Update existing job
-        // const jobRef = doc(db, "jobs", job.id);
-        // await updateDoc(jobRef, jobPayload);
-        await mockFirestore.collection("jobs").doc(job.id).update(jobPayload);
+        await db.collection("jobs").doc(job.id).update({ ...jobPayload, status: 'pending_approval', approvedByAdmin: false });
         toast({ title: "Job Updated", description: "Your job post has been updated and is pending re-approval." });
       } else {
-        // Add new job
-        // await addDoc(collection(db, "jobs"), { ...jobPayload, createdAt: serverTimestamp() });
-        await mockFirestore.collection("jobs").add({ ...jobPayload, createdAt: new Date() });
+        await db.collection("jobs").add({ ...jobPayload, createdAt: new Date() });
         toast({ title: "Job Posted", description: "Your job post has been submitted for approval." });
       }
-      router.push("/customer/jobs"); // Redirect to the list of all jobs
+      router.push("/customer/jobs"); 
     } catch (error: any) {
+      console.error("Job Post/Update Error:", error);
       toast({
         title: isEditing ? "Update Failed" : "Posting Failed",
         description: error.message || "An error occurred. Please try again.",
@@ -161,7 +157,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
               )}
             />
 
-            {!isEditing && ( // Only show AI generation for new jobs
+            {!isEditing && ( 
              <FormField
                 control={form.control}
                 name="descriptionKeywords"
@@ -290,5 +286,3 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     </Card>
   );
 }
-
-    

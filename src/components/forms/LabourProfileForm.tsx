@@ -1,7 +1,8 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,24 +26,21 @@ import type { UserProfile } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { mockFirestore } from "@/lib/firebase"; // For mock update
-// import { doc, updateDoc, serverTimestamp } from "firebase/firestore"; // Actual Firestore
-// import { db } from "@/lib/firebase"; // Actual Firestore
+import { db } from "@/lib/firebase"; // Using new mock db
 
 const labourProfileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   phone: z.string().optional().refine(val => !val || /^\+?[1-9]\d{1,14}$/.test(val), {
     message: "Please enter a valid phone number (e.g., +911234567890 or 1234567890).",
   }),
-  roleType: z.string().min(1, { message: "Please select your primary role." }), // e.g., "Electrician", "Mason"
+  roleType: z.string().min(1, { message: "Please select your primary role." }),
   skills: z.array(z.string()).refine(value => value.some(item => item), {
     message: "You have to select at least one skill.",
   }),
   city: z.string().min(1, { message: "Please select your city." }),
   availability: z.boolean().default(false),
-  currentWorkSites: z.string().optional(), // Will be split into array or handled as single string
-  pastWorkSites: z.string().optional(), // Will be split into array or handled as single string
-  // profilePhotoUrl: z.string().url().optional(), // For later file upload
+  currentWorkSites: z.string().optional(), 
+  pastWorkSites: z.string().optional(), 
 });
 
 type LabourProfileFormValues = z.infer<typeof labourProfileFormSchema>;
@@ -71,7 +69,7 @@ export function LabourProfileForm() {
       form.reset({
         name: userData.name || "",
         phone: userData.phone || "",
-        roleType: userData.roleType || "", // Assuming roleType is stored on UserProfile for labour
+        roleType: userData.roleType || "",
         skills: userData.skills || [],
         city: userData.city || "",
         availability: userData.availability || false,
@@ -94,20 +92,18 @@ export function LabourProfileForm() {
       availability: data.availability,
       currentWorkSites: data.currentWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
       pastWorkSites: data.pastWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
-      updatedAt: new Date(), // serverTimestamp(),
+      updatedAt: new Date().toISOString(),
     };
 
     try {
-      // const userDocRef = doc(db, "users", userData.uid);
-      // await updateDoc(userDocRef, profileDataToUpdate);
-      await mockFirestore.collection("users").doc(userData.uid).update(profileDataToUpdate); // MOCK
-      
-      await refreshUserData(); // Refresh context data
+      await db.collection("users").doc(userData.uid).update(profileDataToUpdate);
+      await refreshUserData(); 
       toast({
         title: "Profile Updated",
         description: "Your profile information has been successfully updated.",
       });
     } catch (error: any) {
+      console.error("Profile Update Error:", error);
       toast({
         title: "Update Failed",
         description: error.message || "An error occurred. Please try again.",
@@ -166,7 +162,7 @@ export function LabourProfileForm() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {siteConfig.skills.map(skill => ( // Using skills list as roles for now
+                      {siteConfig.skills.map(skill => ( 
                         <SelectItem key={skill} value={skill}>{skill}</SelectItem>
                       ))}
                     </SelectContent>
@@ -295,22 +291,6 @@ export function LabourProfileForm() {
                 </FormItem>
               )}
             />
-            {/* Profile Photo Upload - To be implemented */}
-            {/* 
-            <FormField
-              control={form.control}
-              name="profilePhotoUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Profile Photo</FormLabel>
-                  <FormControl>
-                    <Input type="file" accept="image/*" onChange={(e) => handlePhotoUpload(e.target.files?.[0])} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            */}
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? <Loader className="mr-2" size={16} /> : null}
               Save Changes

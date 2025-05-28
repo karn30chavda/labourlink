@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore"; // Will be undefined if firebase is not fully set up
+
 
 export interface UserProfile {
   uid: string;
@@ -12,6 +12,7 @@ export interface UserProfile {
   skills?: string[];
   city?: string;
   availability?: boolean;
+  roleType?: string; // Added from LabourProfileForm
   currentWorkSites?: string[];
   pastWorkSites?: string[];
   
@@ -19,14 +20,14 @@ export interface UserProfile {
   subscription?: {
     planId: string; // e.g., 'monthly_99', 'yearly_499'
     planType: 'monthly' | 'yearly' | 'free' | 'premium_customer';
-    validUntil: Timestamp | Date | null; // Firestore Timestamp or Date string
+    validUntil: Date | null; 
     razorpayPaymentId?: string;
     status: 'active' | 'inactive' | 'expired';
     jobPostLimit?: number; // For customers
     jobPostCount?: number; // For customers
   };
-  createdAt: Timestamp | Date | string;
-  updatedAt?: Timestamp | Date | string;
+  createdAt: Date | string;
+  updatedAt?: Date | string;
 }
 
 export interface Job {
@@ -35,13 +36,13 @@ export interface Job {
   customerName?: string; // Name of the customer
   title: string;
   description: string;
-  requiredSkill: string; // Can be a comma-separated string or ideally an array
-  location: string; // City or more specific address
-  duration: string; // e.g., "1 week", "2 months", "Ongoing"
-  budget?: string; // Optional, e.g., "₹5000 - ₹7000", "Negotiable"
-  status: 'pending_approval' | 'open' | 'assigned' | 'in_progress' | 'completed' | 'cancelled_by_customer' | 'expired';
-  createdAt: Timestamp | Date | string;
-  updatedAt?: Timestamp | Date | string;
+  requiredSkill: string; 
+  location: string; 
+  duration: string; 
+  budget?: string; 
+  status: 'pending_approval' | 'open' | 'assigned' | 'in_progress' | 'completed' | 'cancelled_by_customer' | 'expired' | 'deleted';
+  createdAt: Date | string;
+  updatedAt?: Date | string;
   approvedByAdmin?: boolean;
   assignedLabourId?: string; // UID of the labour assigned
 }
@@ -52,11 +53,10 @@ export interface Application {
   labourName?: string;
   jobId: string;
   jobTitle?: string;
-  customerId?: string; // UID of the customer who owns the job
-  message?: string; // Cover letter or message from labour
-  dateApplied: Timestamp | Date | string;
+  customerId?: string; 
+  message?: string; 
+  dateApplied: Date | string;
   status: 'pending' | 'shortlisted' | 'accepted' | 'rejected_by_customer' | 'withdrawn_by_labour';
-  // Optional: labour proposed rate if different from job budget
   proposedRate?: string; 
 }
 
@@ -67,17 +67,17 @@ export interface Payment {
   razorpayPaymentId: string;
   razorpayOrderId?: string;
   razorpaySignature?: string;
-  planId: string; // e.g., 'monthly_99_labour', 'yearly_499_labour', 'customer_basic_jobs'
-  planType: string; // 'monthly', 'yearly', 'job_pack'
+  planId: string; 
+  planType: string; 
   amount: number;
   currency: 'INR';
   status: 'created' | 'authorized' | 'captured' | 'refunded' | 'failed';
-  createdAt: Timestamp | Date | string;
+  createdAt: Date | string;
 }
 
 export type UserRole = 'labour' | 'customer' | 'admin';
 
-// For AI Flows
+// For AI Flows (remain unchanged as they are server-side concepts)
 export interface Labor {
   name: string;
   role: string;
@@ -92,4 +92,15 @@ export interface JobPosting {
   description: string;
   requiredSkill: string;
   location: string;
+}
+
+// Mock User type for client-side auth simulation
+export interface MockAuthUser {
+  uid: string;
+  email: string | null;
+  displayName?: string | null;
+}
+
+export interface MockUserCredential {
+  user: MockAuthUser;
 }

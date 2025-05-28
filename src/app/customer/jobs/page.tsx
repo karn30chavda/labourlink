@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import type { Job } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { mockFirestore } from "@/lib/firebase"; // For fetching jobs
+import { db } from "@/lib/firebase"; 
 import { AlertCircle, Briefcase, Edit3, Eye, Loader2, PlusCircle, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -37,13 +37,11 @@ export default function CustomerJobsPage() {
       if (!userData?.uid) return;
       setLoading(true);
       try {
-        // Mock fetching jobs for the current customer, ordered by creation date
-        // In a real app: query(collection(db, "jobs"), where("customerId", "==", userData.uid), orderBy("createdAt", "desc"))
-        const allJobsSnapshot = await mockFirestore.collection("jobs").where("status", "!=", "deleted").get(); // Mock: fetch all, then filter
-        const jobsData = allJobsSnapshot.docs
+        const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
+        const jobsData = jobsSnapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as Job))
-            .filter(job => job.customerId === userData.uid) // Filter client-side for mock
-            .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime()); // Sort client-side
+            .filter(job => job.status !== 'deleted') // Ensure soft-deleted jobs are not shown
+            .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
         setJobs(jobsData);
       } catch (error) {
         console.error("Error fetching jobs:", error);
@@ -52,8 +50,9 @@ export default function CustomerJobsPage() {
         setLoading(false);
       }
     };
-
-    fetchJobs();
+    if (userData?.uid) {
+        fetchJobs();
+    }
   }, [userData?.uid, toast]);
 
   const filteredJobs = jobs.filter(job =>
@@ -63,9 +62,7 @@ export default function CustomerJobsPage() {
 
   const handleDeleteJob = async (jobId: string) => {
     try {
-      // Mock delete: In a real app, use Firestore's deleteDoc or update status to 'deleted'
-      // await deleteDoc(doc(db, "jobs", jobId));
-      await mockFirestore.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date() }); // Soft delete for mock
+      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date() });
       setJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
       toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
     } catch (error) {
@@ -79,7 +76,7 @@ export default function CustomerJobsPage() {
       case 'open': return 'default';
       case 'pending_approval': return 'secondary';
       case 'assigned': case 'in_progress': return 'outline';
-      case 'completed': return 'default'; // Consider a different color like success
+      case 'completed': return 'default'; 
       case 'cancelled_by_customer': case 'expired': return 'destructive';
       default: return 'outline';
     }
@@ -154,7 +151,6 @@ export default function CustomerJobsPage() {
                     <p className="text-sm text-muted-foreground line-clamp-3">{job.description}</p>
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                    {/* Add View Applicants button or other actions later */}
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/customer/jobs/${job.id}/edit`}><Edit3 className="mr-1 h-4 w-4" /> Edit</Link>
                     </Button>
@@ -189,5 +185,3 @@ export default function CustomerJobsPage() {
     </AuthGuard>
   );
 }
-
-    

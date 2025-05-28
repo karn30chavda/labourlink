@@ -4,7 +4,7 @@
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { JobPostForm } from "@/components/forms/JobPostForm";
-import { mockFirestore } from "@/lib/firebase"; // Using mock for now
+import { db } from "@/lib/firebase"; 
 import type { Job } from "@/types";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -34,20 +34,16 @@ export default function EditJobPage() {
 
     const fetchJob = async () => {
       try {
-        // Replace with actual Firestore fetch:
-        // const jobDocRef = doc(db, "jobs", jobId);
-        // const jobDoc = await getDoc(jobDocRef);
-        const jobDoc = await mockFirestore.collection("jobs").doc(jobId).get(); // MOCK
+        const jobDoc = await db.collection("jobs").doc(jobId).get();
 
         if (jobDoc.exists()) {
           const jobData = jobDoc.data() as Job;
-          // Ensure the job belongs to the current customer
           if (jobData.customerId !== userData?.uid) {
             toast({ title: "Unauthorized", description: "You are not authorized to edit this job.", variant: "destructive" });
             router.push("/customer/jobs");
             return;
           }
-          setJob({ ...jobData, id: jobId }); // Ensure ID is part of the job object
+          setJob({ ...jobData, id: jobId });
         } else {
           setError("Job not found.");
           toast({ title: "Error", description: "Job not found.", variant: "destructive" });
@@ -62,14 +58,14 @@ export default function EditJobPage() {
       }
     };
 
-    if (userData?.uid) { // Ensure userData is available before fetching
+    if (userData?.uid) { 
         fetchJob();
-    } else if (!userData && !loading) { // If userData is null and not loading, likely an auth issue
+    } else if (!userData && !loading) { 
         toast({ title: "Authentication Error", description: "Please log in to edit jobs.", variant: "destructive" });
         router.push("/login");
     }
 
-  }, [jobId, router, toast, userData, loading]); // Added loading to dependency array
+  }, [jobId, router, toast, userData, loading]); 
 
   if (loading || !userData) {
     return <PageLoader message="Loading job details..." />;
@@ -93,5 +89,4 @@ export default function EditJobPage() {
     </AuthGuard>
   );
 }
-
     

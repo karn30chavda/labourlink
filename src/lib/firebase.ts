@@ -1,151 +1,166 @@
 
-// Import the functions you need from the SDKs you need
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth"; // Real Firebase Auth
-import { getStorage } from "firebase/storage";
+import type { UserProfile, Job, MockAuthUser, MockUserCredential } from '@/types';
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// --- MOCK AUTHENTICATION ---
+let currentMockUser: MockAuthUser | null = null;
+let authStateListener: ((user: MockAuthUser | null) => void) | null = null;
 
-// --- START DIAGNOSTIC LOGS ---
-console.log("--- Firebase Configuration Loading ---");
-console.log("Attempting to read environment variables for Firebase config...");
-const apiKeyFromEnv = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-const authDomainFromEnv = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
-const projectIdFromEnv = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-const storageBucketFromEnv = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-const messagingSenderIdFromEnv = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
-const appIdFromEnv = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
-
-console.log("NEXT_PUBLIC_FIREBASE_API_KEY:", apiKeyFromEnv);
-console.log("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomainFromEnv);
-console.log("NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectIdFromEnv);
-console.log("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:", storageBucketFromEnv);
-console.log("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:", messagingSenderIdFromEnv);
-console.log("NEXT_PUBLIC_FIREBASE_APP_ID:", appIdFromEnv);
-console.log("--- End of Firebase Environment Variable Check ---");
-// --- END DIAGNOSTIC LOGS ---
-
-
-const firebaseConfig = {
-  apiKey: apiKeyFromEnv,
-  authDomain: authDomainFromEnv,
-  projectId: projectIdFromEnv,
-  storageBucket: storageBucketFromEnv,
-  messagingSenderId: messagingSenderIdFromEnv,
-  appId: appIdFromEnv,
+// Simple in-memory store for user profiles
+const mockUsersDb: { [uid: string]: UserProfile } = {
+  "adminUID": { uid: 'adminUID', name: 'Admin User', email: 'admin@labourlink.com', role: 'admin', createdAt: new Date() },
+  "labourUID": { uid: 'labourUID', name: 'Labour User', email: 'labour@labourlink.com', role: 'labour', roleType: "Plumber", city: 'MockCity', skills: ['Plumbing', 'Electrical'], availability: true, createdAt: new Date() },
+  "customerUID": { uid: 'customerUID', name: 'Customer User', email: 'customer@labourlink.com', role: 'customer', createdAt: new Date(), subscription: { planId: 'free', planType: 'free', validUntil: null, status: 'active', jobPostLimit: 1, jobPostCount: 0 } },
 };
-// Conditional initialization to prevent re-initialization errors and provide clear feedback
-let app;
-let db;
-let authInstance; // Renamed to avoid conflict with the auth export
-let storage;
 
-if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-  console.error(
-    "CRITICAL FIREBASE CONFIG ERROR: Firebase apiKey or projectId is missing. These values are typically read from your .env.local file (e.g., NEXT_PUBLIC_FIREBASE_API_KEY)." +
-    " Firebase will NOT be initialized. Please ensure all NEXT_PUBLIC_FIREBASE_... variables are correctly set in your .env.local file," +
-    " and that you have restarted your development server after making changes to .env.local."
-  );
-}
-
-if (!getApps().length) {
-  // Only initialize if critical configs are present
-  if (firebaseConfig.apiKey && firebaseConfig.projectId) {
-    try {
-      console.log("Attempting to initialize Firebase app with config:", firebaseConfig);
-      app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
-      authInstance = getAuth(app); // Initialize the auth service
-      storage = getStorage(app);
-      console.log("Firebase initialized successfully.");
-    } catch (error) {
-      console.error("CRITICAL: Firebase initialization failed during initializeApp():", error);
-      console.error("This usually means the provided Firebase config values (API Key, Project ID, etc.) are incorrect or the Firebase project is not set up properly for this app.");
-      // Re-throw to make the error very visible in the server logs and potentially crash the server start,
-      // which is appropriate if Firebase is critical.
-      // throw error; // You might want to uncomment this in a production build script
-    }
-  } else {
-    console.error("Firebase NOT initialized due to missing apiKey or projectId in the resolved config. Check previous logs for environment variable values.");
-  }
-} else {
-  app = getApp(); // Get the already initialized app
-  db = getFirestore(app);
-  authInstance = getAuth(app); // Get the auth service from the existing app
-  storage = getStorage(app);
-  console.log("Firebase app was already initialized. Using existing app instance.");
-}
-
-// Export the initialized services (or undefined if initialization failed and wasn't forced to crash)
-// Renaming exported 'auth' to 'authService' to avoid potential naming conflicts if 'auth' is used as a variable elsewhere.
-// However, standard practice is to export it as 'auth'. I'll stick to 'auth' for now as it's used that way in AuthContext.
-export { app, db, authInstance as auth, storage };
-
-
-// Firestore mock functions for UI development - these should be removed or clearly separated once real Firebase is working
-export const mockFirestore = {
-  collection: (collectionName: string) => ({
-    doc: (docId?: string) => ({
-      get: async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        if (collectionName === 'users' && docId === 'adminUID') {
-          return { exists: () => true, data: () => ({ uid: 'adminUID', name: 'Admin User', email: 'admin@labourlink.com', role: 'admin' }) };
-        }
-        if (collectionName === 'users' && docId === 'labourUID') {
-          return { exists: () => true, data: () => ({ uid: 'labourUID', name: 'Labour User', email: 'labour@labourlink.com', role: 'labour', city: 'MockCity', skills: ['Plumbing', 'Electrical'], availability: true }) };
-        }
-        if (collectionName === 'users' && docId === 'customerUID') {
-          return { exists: () => true, data: () => ({ uid: 'customerUID', name: 'Customer User', email: 'customer@labourlink.com', role: 'customer' }) };
-        }
-        return { exists: () => false, data: () => null };
-      },
-      set: async (data: any) => {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        console.log(`Mock Firestore: set data in ${collectionName}/${docId || 'new_doc'}`, data);
-      },
-      update: async (data: any) => {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        console.log(`Mock Firestore: update data in ${collectionName}/${docId}`, data);
+const auth = {
+  onAuthStateChanged: (callback: (user: MockAuthUser | null) => void): (() => void) => {
+    authStateListener = callback;
+    // Immediately call with current state
+    Promise.resolve().then(() => callback(currentMockUser));
+    return () => {
+      authStateListener = null; // Unsubscribe
+    };
+  },
+  signInWithEmailAndPassword: async (email: string, password: string): Promise<MockUserCredential> => {
+    console.log("Mock Sign In Attempt:", email);
+    await new Promise(resolve => setTimeout(resolve, 200)); // Simulate network delay
+    for (const uid in mockUsersDb) {
+      if (mockUsersDb[uid].email === email && password === "password") { // Simple password check
+        currentMockUser = { uid, email, displayName: mockUsersDb[uid].name };
+        if (authStateListener) authStateListener(currentMockUser);
+        return { user: currentMockUser };
       }
-    }),
+    }
+    throw new Error("Mock Auth: Invalid credentials.");
+  },
+  createUserWithEmailAndPassword: async (email: string, password: string): Promise<MockUserCredential> => {
+    console.log("Mock Register Attempt:", email);
+    await new Promise(resolve => setTimeout(resolve, 200));
+    if (Object.values(mockUsersDb).find(u => u.email === email)) {
+      throw new Error("Mock Auth: Email already in use.");
+    }
+    const uid = `mockUID-${Date.now()}`;
+    // The actual UserProfile creation will be handled by AuthContext,
+    // this just creates the auth user part.
+    currentMockUser = { uid, email }; 
+    if (authStateListener) authStateListener(currentMockUser);
+    return { user: currentMockUser };
+  },
+  signOut: async (): Promise<void> => {
+    console.log("Mock Sign Out");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    currentMockUser = null;
+    if (authStateListener) authStateListener(null);
+  },
+  // Add other auth methods if needed, e.g., currentUser getter
+  get currentUser(): MockAuthUser | null {
+    return currentMockUser;
+  }
+};
+
+// --- MOCK FIRESTORE ---
+let mockJobsDb: { [id: string]: Job } = {
+  'job1': { id: 'job1', title: 'Plumbing Work (Open)', customerId: 'customerUID', customerName: 'Customer User', description: 'Fix leaky pipes and install new sink.', requiredSkill: 'Plumbing', location: 'MockCity', duration: '2 days', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 3).toISOString() },
+  'job2': { id: 'job2', title: 'Electrical Wiring for New Office', customerId: 'customerUID2', customerName: 'Tech Solutions Ltd.', description: 'Complete electrical wiring for a new office space.', requiredSkill: 'Electrical', location: 'AnotherCity', duration: '5 days', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString() },
+  'jobCust1': { id: 'jobCust1', title: 'Customer Job 1 (Open)', customerId: 'customerUID', customerName: 'Customer User', description: 'Garden wall construction needed.', requiredSkill: 'Mason', location: 'MockCity', duration: '1 week', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
+  'jobCust2': { id: 'jobCust2', title: 'Customer Job 2 (Pending)', customerId: 'customerUID', customerName: 'Customer User', description: 'Interior painting for 2 rooms.', requiredSkill: 'Painter', location: 'MockCity', duration: '3 days', status: 'pending_approval', approvedByAdmin: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+};
+let jobIdCounter = Object.keys(mockJobsDb).length + 1;
+
+const db = {
+  collection: (collectionName: string) => ({
+    doc: (docId?: string) => {
+      const id = docId || `mockDoc-${Date.now()}`; // Generate ID if not provided
+      return {
+        get: async () => {
+          console.log(`Mock DB Get: ${collectionName}/${id}`);
+          await new Promise(resolve => setTimeout(resolve, 150));
+          let dataStore = collectionName === 'users' ? mockUsersDb : mockJobsDb;
+          const docData = dataStore[id];
+          if (docData) {
+            return { exists: () => true, data: () => ({...docData}), id };
+          }
+          return { exists: () => false, data: () => null, id };
+        },
+        set: async (data: any) => {
+          console.log(`Mock DB Set: ${collectionName}/${id}`, data);
+          await new Promise(resolve => setTimeout(resolve, 150));
+          if (collectionName === 'users') {
+            mockUsersDb[id] = { ...data, uid: id } as UserProfile;
+          } else if (collectionName === 'jobs') {
+            mockJobsDb[id] = { ...data, id } as Job;
+          }
+        },
+        update: async (data: any) => {
+          console.log(`Mock DB Update: ${collectionName}/${id}`, data);
+          await new Promise(resolve => setTimeout(resolve, 150));
+          if (collectionName === 'users' && mockUsersDb[id]) {
+            mockUsersDb[id] = { ...mockUsersDb[id], ...data, updatedAt: new Date() };
+          } else if (collectionName === 'jobs' && mockJobsDb[id]) {
+            mockJobsDb[id] = { ...mockJobsDb[id], ...data, updatedAt: new Date() };
+          } else {
+            throw new Error(`Mock DB: Document ${collectionName}/${id} not found for update.`);
+          }
+        },
+        delete: async () => {
+           console.log(`Mock DB Delete: ${collectionName}/${id}`);
+           await new Promise(resolve => setTimeout(resolve, 150));
+           if (collectionName === 'users') {
+            delete mockUsersDb[id];
+          } else if (collectionName === 'jobs') {
+            delete mockJobsDb[id]; // For hard delete simulation
+            // Or for soft delete: mockJobsDb[id].status = 'deleted'; mockJobsDb[id].updatedAt = new Date();
+          }
+        }
+      };
+    },
     add: async (data: any) => {
-      await new Promise(resolve => setTimeout(resolve, 50));
-      const newId = `newDoc-${Date.now()}`;
-      console.log(`Mock Firestore: add data to ${collectionName}, new ID: ${newId}`, data);
+      console.log(`Mock DB Add to ${collectionName}:`, data);
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const newId = collectionName === 'jobs' ? `job${jobIdCounter++}` : `user-${Date.now()}`;
+      if (collectionName === 'users') {
+        mockUsersDb[newId] = { ...data, uid: newId, createdAt: new Date() } as UserProfile;
+      } else if (collectionName === 'jobs') {
+        mockJobsDb[newId] = { ...data, id: newId, createdAt: new Date() } as Job;
+      }
       return { id: newId };
     },
-    where: (field: string, operator: string, value: any) => ({
+    where: (field: keyof Job | keyof UserProfile, operator: string, value: any) => ({
       get: async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        if (collectionName === 'jobs' && field === 'status' && value === 'open') {
-          return { empty: false, docs: [
-            { id: 'job1', data: () => ({ id: 'job1', title: 'Plumbing Work', description: 'Fix leaky pipes', requiredSkill: 'Plumbing', location: 'MockCity', duration: '2 days', status: 'open', customerId: 'customerUID', approvedByAdmin: true }) },
-            { id: 'job2', data: () => ({ id: 'job2', title: 'Electrical Wiring', description: 'Install new wiring', requiredSkill: 'Electrical', location: 'AnotherCity', duration: '5 days', status: 'open', customerId: 'customerUID2', approvedByAdmin: true }) },
-          ]};
-        }
-         if (collectionName === 'jobs' && field === 'status' && value !== 'deleted') {
-            if (value === 'customerUID' || field === 'customerId'){
-                 return { empty: false, docs: [
-                    { id: 'jobCust1', data: () => ({ id: 'jobCust1', title: 'Customer Job 1 (Open)', customerId: 'customerUID', requiredSkill: 'Plumbing', location: 'MockCity', duration: '1 week', status: 'open', createdAt: new Date(Date.now() - 86400000).toISOString() }) },
-                    { id: 'jobCust2', data: () => ({ id: 'jobCust2', title: 'Customer Job 2 (Pending)', customerId: 'customerUID', requiredSkill: 'Electrical', location: 'MockCity', duration: '3 days', status: 'pending_approval', createdAt: new Date().toISOString() }) },
-                 ]};
-            }
-            return { empty: false, docs: [
-                { id: 'job1', data: () => ({ id: 'job1', title: 'Plumbing Work', description: 'Fix leaky pipes', requiredSkill: 'Plumbing', location: 'MockCity', duration: '2 days', status: 'open', customerId: 'customerUID', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000 * 2).toISOString() }) },
-                { id: 'job2', data: () => ({ id: 'job2', title: 'Electrical Wiring', description: 'Install new wiring', requiredSkill: 'Electrical', location: 'AnotherCity', duration: '5 days', status: 'open', customerId: 'customerUID2', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000).toISOString() }) },
-                { id: 'job3', data: () => ({ id: 'job3', title: 'Pending Masonry', description: 'Build a wall', requiredSkill: 'Masonry', location: 'MockCity', duration: '1 week', status: 'pending_approval', customerId: 'customerUID', createdAt: new Date().toISOString() }) },
-            ]};
-        }
-        if (collectionName === 'users' && field === 'role' && value === 'labour') {
-           return { empty: false, docs: [
-            { id: 'labour1', data: () => ({ uid: 'labour1', name: 'John Doe', role: 'labour', skills: ['Plumbing', 'Welding'], city: 'MockCity', availability: true, email: 'john@example.com' }) },
-            { id: 'labour2', data: () => ({ uid: 'labour2', name: 'Jane Smith', role: 'labour', skills: ['Electrical', 'Carpentry'], city: 'AnotherCity', availability: false, email: 'jane@example.com' }) },
-          ]};
-        }
-        return { empty: true, docs: [] };
+        console.log(`Mock DB Where: ${collectionName} WHERE ${String(field)} ${operator} ${value}`);
+        await new Promise(resolve => setTimeout(resolve, 150));
+        let storeToSearch = collectionName === 'jobs' ? Object.values(mockJobsDb) : Object.values(mockUsersDb);
+        
+        const results = storeToSearch.filter(doc => {
+          const docValue = doc[field as keyof typeof doc];
+          if (operator === '==') return docValue === value;
+          if (operator === '!=') return docValue !== value;
+          if (operator === 'array-contains' && Array.isArray(docValue)) return docValue.includes(value);
+          // Add more operators as needed for mock
+          return false;
+        });
+        return {
+          empty: results.length === 0,
+          docs: results.map(doc => ({ 
+            id: (doc as any).id || (doc as any).uid, 
+            data: () => ({...doc}) 
+          })),
+        };
       }
+      // Add orderBy, limit etc. mocks if needed for more complex queries
     })
-  }),
+  })
 };
+
+// --- MOCK STORAGE ---
+const storage = {
+  // Mock storage methods if needed, e.g., ref, uploadBytes, getDownloadURL
+  // For now, a minimal mock:
+  ref: (path: string) => ({
+    put: async () => ({ snapshot: { ref: { getDownloadURL: async () => `https://placehold.co/100x100.png?text=MOCK`}}}),
+    getDownloadURL: async () => `https://placehold.co/100x100.png?text=MOCK`
+  })
+};
+
+// Export mocks
+export { auth, db, storage };

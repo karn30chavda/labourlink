@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -6,14 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { getRelevantJobNotifications } from "@/ai/flows/relevant-job-notifications";
-import type { Job, JobPosting } from "@/types"; // Assuming Job is your detailed Job type
+import type { Job, JobPosting } from "@/types"; 
 import { useEffect, useState } from "react";
-import { mockFirestore } from "@/lib/firebase"; // For fetching all jobs
+import { db } from "@/lib/firebase"; 
 import Link from "next/link";
 import { AlertCircle, Briefcase, CheckCircle, Eye, FileText, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-// Mock applied jobs data
 const mockAppliedJobs: (Job & { applicationStatus: string; dateApplied: string })[] = [
   { id: 'job1', title: 'Urgent Plumbing for New Condo', customerId: 'cust1', customerName: 'ABC Builders', requiredSkill: 'Plumbing', location: 'Downtown, MockCity', duration: '1 week', status: 'open', createdAt: new Date().toISOString(), applicationStatus: 'Pending', dateApplied: '2024-07-20' },
   { id: 'job3', title: 'Electrical Rewiring Project', customerId: 'cust2', customerName: 'Home Renovations Ltd.', requiredSkill: 'Electrical', location: 'Suburb, MockCity', duration: '2 weeks', status: 'open', createdAt: new Date().toISOString(), applicationStatus: 'Shortlisted', dateApplied: '2024-07-18' },
@@ -31,29 +31,27 @@ export default function LabourDashboardPage() {
       const fetchJobs = async () => {
         try {
           setLoadingJobs(true);
-          // 1. Fetch all open jobs from Firestore (mocked for now)
-          // const jobsSnapshot = await getDocs(query(collection(db, "jobs"), where("status", "==", "open")));
-          const jobsSnapshot = await mockFirestore.collection("jobs").where("status", "==", "open").get();
+          const jobsSnapshot = await db.collection("jobs").where("status", "==", "open").get();
           
           const allOpenJobs: JobPosting[] = jobsSnapshot.docs.map(doc => {
-            const jobData = doc.data() as Job;
+            const jobData = doc.data() as Job; // Assuming Job type includes all needed fields for JobPosting
             return {
+              // id: doc.id, // if needed by JobPosting or for links
               title: jobData.title,
               description: jobData.description,
               requiredSkill: jobData.requiredSkill,
               location: jobData.location,
             };
-          });
+          }).filter(job => job.location === userData.city); // Pre-filter for AI
 
-          // 2. Call AI flow for relevant jobs
-          if (allOpenJobs.length > 0) {
+          if (allOpenJobs.length > 0 && userData.skills) { // Ensure skills exist
             const aiInput = {
-              laborSkills: userData.skills || [],
-              laborCity: userData.city || '',
+              laborSkills: userData.skills || [], // Ensure skills is an array
+              laborCity: userData.city || '', // Ensure city is a string
               jobPostings: allOpenJobs,
             };
             const result = await getRelevantJobNotifications(aiInput);
-            setRelevantJobs(result.relevantJobs.slice(0, 5)); // Show top 5
+            setRelevantJobs(result.relevantJobs.slice(0, 5)); 
           } else {
             setRelevantJobs([]);
           }
@@ -88,7 +86,6 @@ export default function LabourDashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Quick Stats Cards - Example */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Applications</CardTitle>
@@ -118,7 +115,6 @@ export default function LabourDashboardPage() {
              <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Profile Completion</CardTitle>
-                {/* Placeholder - actual logic would check more fields */}
                 <Briefcase className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -130,7 +126,6 @@ export default function LabourDashboardPage() {
             </Card>
           </div>
 
-          {/* Relevant Job Notifications */}
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>AI Suggested Jobs For You</CardTitle>
@@ -163,7 +158,6 @@ export default function LabourDashboardPage() {
                           <p className="text-sm mt-1 line-clamp-2">{job.description}</p>
                         </div>
                         <Button variant="outline" size="sm" asChild>
-                          {/* This should link to a job detail page: /jobs/[jobId] */}
                           <Link href={`/jobs?title=${encodeURIComponent(job.title)}`}>View Job</Link>
                         </Button>
                       </div>
@@ -174,7 +168,6 @@ export default function LabourDashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Applied Jobs Overview */}
            <Card>
             <CardHeader>
               <CardTitle>Your Recent Applications</CardTitle>
@@ -197,7 +190,6 @@ export default function LabourDashboardPage() {
                           {job.applicationStatus}
                         </Badge>
                          <Button variant="ghost" size="sm" asChild>
-                           {/* This should link to a job detail page: /jobs/[jobId] */}
                           <Link href={`/jobs?title=${encodeURIComponent(job.title)}`}><Eye className="h-4 w-4" /></Link>
                         </Button>
                       </div>

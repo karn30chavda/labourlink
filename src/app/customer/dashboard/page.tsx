@@ -10,7 +10,7 @@ import { matchLabor } from "@/ai/flows/labor-match";
 import type { Job, Labor } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { mockFirestore } from "@/lib/firebase"; 
+import { db } from "@/lib/firebase"; 
 import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/alert-dialog";
 
 
-// Mock available labors for AI matching - This might come from a global state or be fetched
 const mockAvailableLabors: Labor[] = [
   { name: "Mike P.", role: "Plumber", skills: ["Pipe Fitting", "Drain Cleaning", "Fixture Installation"], availability: true, city: "MockCity", pastWorkingSites: ["Site A", "Site B"] },
   { name: "Sarah E.", role: "Electrician", skills: ["Wiring", "Panel Upgrades", "Lighting Installation"], availability: true, city: "MockCity", pastWorkingSites: ["Site C"] },
@@ -52,13 +51,11 @@ export default function CustomerDashboardPage() {
       if (!userData?.uid) return;
       setLoadingJobs(true);
       try {
-        // Mock fetching jobs for the current customer
-        // In a real app: query(collection(db, "jobs"), where("customerId", "==", userData.uid), orderBy("createdAt", "desc"))
-        const allJobsSnapshot = await mockFirestore.collection("jobs").where("status", "!=", "deleted").get(); // Mock fetching all
-        const jobsData = allJobsSnapshot.docs
+        const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
+        const jobsData = jobsSnapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as Job))
-            .filter(job => job.customerId === userData.uid) // Filter client-side for mock
-            .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime()); // Sort client-side
+            .filter(job => job.status !== 'deleted') // Client-side filter for soft delete status
+            .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
         setCustomerJobs(jobsData);
       } catch (error) {
         console.error("Error fetching customer jobs:", error);
@@ -68,7 +65,9 @@ export default function CustomerDashboardPage() {
       }
     };
 
-    fetchCustomerJobs();
+    if (userData?.uid) {
+        fetchCustomerJobs();
+    }
   }, [userData?.uid, toast]);
 
 
@@ -108,9 +107,7 @@ export default function CustomerDashboardPage() {
 
   const handleDeleteJob = async (jobId: string) => {
     try {
-      // Mock delete: In a real app, use Firestore's deleteDoc or update status to 'deleted'
-      // await deleteDoc(doc(db, "jobs", jobId));
-      await mockFirestore.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date() }); // Soft delete for mock
+      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date() });
       setCustomerJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
       toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
     } catch (error) {
@@ -258,5 +255,3 @@ export default function CustomerDashboardPage() {
     </AuthGuard>
   );
 }
-
-    
