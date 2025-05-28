@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { db } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useState } from "react";
 
 
@@ -40,32 +41,31 @@ export function JobCard({ job, hasApplied = false, onApplySuccess }: JobCardProp
        toast({title: "Subscription Required", description: "Please subscribe to a plan to apply for jobs.", variant: "destructive", action: <Button onClick={() => router.push('/labour/subscription')}>View Plans</Button> });
        return;
     }
+    if (!db) {
+        toast({title: "Error", description: "Database service not available.", variant: "destructive"});
+        return;
+    }
 
     setIsApplying(true);
     try {
-      // Ensure all necessary fields for Application type are included
-      const applicationData: Omit<Application, 'id' | 'dateApplied' | 'updatedAt'> = {
+      const applicationData: Omit<Application, 'id' | 'updatedAt'> = { // id and updatedAt will be auto-managed or set by server
         labourId: userData.uid,
-        labourName: userData.name, // From UserProfile
-        labourRoleType: userData.roleType, // From UserProfile, new
-        jobId: job.id,
+        labourName: userData.name, 
+        labourRoleType: userData.roleType, 
+        jobId: job.id!, // Assume job.id is always present
         jobTitle: job.title,
         customerId: job.customerId,
-        customerName: job.customerName, // From Job
+        customerName: job.customerName, 
         status: 'Pending',
-        jobRequiredSkill: job.requiredSkill, // From Job
-        jobLocation: job.location, // From Job
-        // message and proposedRate can be added later via an application form
+        jobRequiredSkill: job.requiredSkill, 
+        jobLocation: job.location, 
+        dateApplied: serverTimestamp() as any, // Firestore will convert this
       };
       
-      // For mock db, we pass the full object. Real Firestore addDoc would auto-generate dateApplied.
-      await db.collection("applications").add({
-        ...applicationData,
-        dateApplied: new Date().toISOString() 
-      });
+      await addDoc(collection(db, "applications"), applicationData);
       
       toast({title: "Applied Successfully!", description: `You have applied for: ${job.title}`});
-      if (onApplySuccess) {
+      if (onApplySuccess && job.id) {
         onApplySuccess(job.id);
       }
     } catch (error) {
@@ -106,6 +106,7 @@ export function JobCard({ job, hasApplied = false, onApplySuccess }: JobCardProp
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
+                  {/* Span needed for TooltipTrigger when child is disabled */}
                   <span tabIndex={0}>{actualButton}</span> 
                 </TooltipTrigger>
                 <TooltipContent>
@@ -128,6 +129,7 @@ export function JobCard({ job, hasApplied = false, onApplySuccess }: JobCardProp
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
           <CardTitle className="text-xl font-semibold text-primary group-hover:text-primary-dark transition-colors">
+            {/* In a real app, this would link to a job detail page */}
             <span className="hover:underline cursor-pointer" onClick={() => toast({title: "Info", description: `Job: ${job.title}. Full job detail page coming soon!`})}>{job.title}</span>
           </CardTitle>
           {job.status === 'open' && <Badge className="bg-green-500 text-white">Open</Badge>}

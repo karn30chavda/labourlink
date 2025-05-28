@@ -5,6 +5,7 @@ import { LabourCard } from "@/components/labour/LabourCard";
 import type { UserProfile } from "@/types";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase"; 
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { PageLoader } from "@/components/ui/loader";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,15 +27,19 @@ export default function SearchLabourPage() {
 
   useEffect(() => {
     const fetchLabours = async () => {
+      if (!db) { // Check if db is available
+        setLoading(false);
+        console.error("Firestore instance (db) is not available.");
+        return;
+      }
       setLoading(true);
       try {
-        const laboursSnapshot = await db.collection("users")
-                                .where("role", "==", "labour")
-                                .get();
-        const laboursData = laboursSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+        const laboursQuery = query(collection(db, "users"), where("role", "==", "labour"));
+        const laboursSnapshot = await getDocs(laboursQuery);
+        const laboursData = laboursSnapshot.docs.map(docSnap => ({ uid: docSnap.id, ...docSnap.data() } as UserProfile));
         
         setLabours(laboursData);
-        setFilteredLabours(laboursData);
+        setFilteredLabours(laboursData); // Initially show all fetched labours
       } catch (error) {
         console.error("Error fetching labours:", error);
       } finally {

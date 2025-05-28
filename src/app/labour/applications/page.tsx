@@ -6,7 +6,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import type { Application } from "@/types";
+import type { Application, Job } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Briefcase, Eye, FileText, Loader2, Trash2, MapPin, User } from "lucide-react";
@@ -24,6 +24,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { db } from "@/lib/firebase";
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, Timestamp, orderBy } from "firebase/firestore";
+import { format } from 'date-fns';
 
 
 export default function LabourApplicationsPage() {
@@ -34,12 +36,19 @@ export default function LabourApplicationsPage() {
 
   useEffect(() => {
     const fetchApplications = async () => {
-      if (!userData?.uid) return;
+      if (!userData?.uid || !db) { // Check if db is available
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
-        const appsSnapshot = await db.collection("applications").where("labourId", "==", userData.uid).get();
-        const appsData = appsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application))
-          .sort((a, b) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime());
+        const appsQuery = query(
+          collection(db, "applications"), 
+          where("labourId", "==", userData.uid),
+          orderBy("dateApplied", "desc")
+        );
+        const appsSnapshot = await getDocs(appsQuery);
+        const appsData = appsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Application));
         
         setApplications(appsData);
       } catch (error) {
@@ -56,8 +65,10 @@ export default function LabourApplicationsPage() {
   }, [userData?.uid, toast]);
 
   const handleWithdrawApplication = async (applicationId: string) => {
+    if (!db) return;
     try {
-      await db.collection("applications").doc(applicationId).update({ status: 'Withdrawn_by_labour', updatedAt: new Date().toISOString() });
+      const appDocRef = doc(db, "applications", applicationId);
+      await updateDoc(appDocRef, { status: 'Withdrawn_by_labour', updatedAt: serverTimestamp() });
       setApplications(prevApplications => 
         prevApplications.map(app => 
           app.id === applicationId ? { ...app, status: 'Withdrawn_by_labour' } : app
@@ -72,6 +83,19 @@ export default function LabourApplicationsPage() {
        toast({ title: "Error", description: "Could not withdraw application.", variant: "destructive" });
     }
   };
+  
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return 'N/A';
+    if (dateValue.toDate && typeof dateValue.toDate === 'function') { // Firestore Timestamp
+      return format(dateValue.toDate(), 'PPP');
+    }
+    try { // Date object or valid date string
+      return format(new Date(dateValue), 'PPP');
+    } catch (e) {
+      return 'Invalid Date';
+    }
+  };
+
 
   const getStatusBadgeVariant = (status: Application['status']) => {
     switch (status) {
@@ -140,7 +164,7 @@ export default function LabourApplicationsPage() {
                       </Badge>
                     </div>
                     <CardDescription>
-                      Applied on: {new Date(app.dateApplied).toLocaleDateString()}
+                      Applied on: {formatDate(app.dateApplied)}
                       {app.customerName && <span className="flex items-center mt-1"><User className="mr-1.5 h-3.5 w-3.5 text-muted-foreground"/> Employer: {app.customerName}</span>}
                     </CardDescription>
                   </CardHeader>
@@ -160,6 +184,7 @@ export default function LabourApplicationsPage() {
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 border-t pt-4">
                     <Button variant="outline" size="sm" asChild>
+                      {/* This link might need to be adjusted if job detail pages are added */}
                       <Link href={`/jobs?title=${encodeURIComponent(app.jobTitle || "")}`}><Eye className="mr-1 h-4 w-4" /> View Original Job</Link>
                     </Button>
                     {(app.status === 'Pending' || app.status === 'Shortlisted') && (

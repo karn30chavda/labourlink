@@ -2,19 +2,27 @@
 "use client";
 
 import React, { createContext, useState, useEffect, ReactNode } from "react";
-import { auth, db } from "@/lib/firebase";
-import type { UserProfile, UserRole, MockAuthUser, MockUserCredential } from "@/types";
+import { auth, db } from "@/lib/firebase"; // Uses real Firebase
+import { 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut,
+  type User as FirebaseAuthUser // Renamed to avoid conflict with MockAuthUser if needed
+} from "firebase/auth";
+import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import type { UserProfile, UserRole } from "@/types";
 import { siteConfig } from "@/config/site";
 
 interface AuthContextType {
-  user: MockAuthUser | null;
+  user: FirebaseAuthUser | null; // Changed from MockAuthUser
   userData: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
   isLabour: boolean;
   isCustomer: boolean;
-  login: (email: string, password: string) => Promise<MockUserCredential | void>;
-  register: (name: string, email: string, password: string, role: UserRole) => Promise<MockUserCredential | void>;
+  login: (email: string, password: string) => Promise<void>; // Removed UserCredential return for simplicity
+  register: (name: string, email: string, password: string, role: UserRole) => Promise<void>; // Removed UserCredential
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
 }
@@ -22,11 +30,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<MockAuthUser | null>(null);
+  const [user, setUser] = useState<FirebaseAuthUser | null>(null);
   const [userData, setUserData] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserData = async (currentAuthUser: MockAuthUser) => {
+  const fetchUserData = async (currentAuthUser: FirebaseAuthUser) => {
     if (!currentAuthUser || !currentAuthUser.uid) {
       console.warn("[AuthContext] fetchUserData called with invalid currentAuthUser:", currentAuthUser);
       setUserData(null);
@@ -34,38 +42,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     console.log("[AuthContext] Fetching user data for UID:", currentAuthUser.uid);
     try {
-      const userDocRef = db.collection("users").doc(currentAuthUser.uid);
-      const userDocSnap = await userDocRef.get();
+      const userDocRef = doc(db, "users", currentAuthUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
 
-      console.log("[AuthContext] userDocSnap received:", userDocSnap);
-
-      if (userDocSnap && typeof userDocSnap.exists === 'function') {
-        if (userDocSnap.exists()) {
-          const fetchedData = userDocSnap.data();
-          console.log("[AuthContext] User data found:", fetchedData);
-          setUserData(fetchedData as UserProfile);
-        } else {
-          console.warn(`[AuthContext] No profile found for UID: ${currentAuthUser.uid}. User may need to complete profile or this is a new registration.`);
-          setUserData(null);
-        }
+      if (userDocSnap.exists()) {
+        const fetchedData = userDocSnap.data();
+        console.log("[AuthContext] User data found:", fetchedData);
+        setUserData(fetchedData as UserProfile);
       } else {
-        console.error(`[AuthContext] CRITICAL: userDocSnap.exists is not a function or userDocSnap is falsy for UID: ${currentAuthUser.uid}.`);
-        console.error(`[AuthContext] userDocSnap value:`, JSON.stringify(userDocSnap));
-        if (userDocSnap) {
-            console.error(`[AuthContext] typeof userDocSnap.exists:`, typeof userDocSnap.exists);
-        }
-        setUserData(null);
+        console.warn(`[AuthContext] No profile found for UID: ${currentAuthUser.uid}. User may need to complete profile or this is a new registration.`);
+        setUserData(null); // Ensure userData is null if profile doesn't exist
       }
     } catch (error) {
       console.error("[AuthContext] Error fetching user data:", error);
       setUserData(null);
     }
   };
-
+  
   const refreshUserData = async () => {
     if (user) {
       console.log("[AuthContext] Refreshing user data for:", user.uid);
-      setLoading(true);
+      setLoading(true); // Indicate loading during refresh
       await fetchUserData(user);
       setLoading(false);
     } else {
@@ -75,7 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     setLoading(true);
-    const unsubscribe = auth.onAuthStateChanged(async (currentAuthUser: MockAuthUser | null) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentAuthUser) => {
       console.log("[AuthContext] onAuthStateChanged triggered. currentAuthUser:", currentAuthUser);
       setUser(currentAuthUser);
       if (currentAuthUser) {
@@ -91,63 +88,62 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const login = async (email: string, password: string): Promise<MockUserCredential | void> => {
+  const login = async (email: string, password: string): Promise<void> => {
     setLoading(true);
     try {
-      const userCredential = await auth.signInWithEmailAndPassword(email, password);
+      await signInWithEmailAndPassword(auth, email, password);
       // onAuthStateChanged will handle setting user and fetching userData
       console.log("[AuthContext] Login successful for:", email);
-      return userCredential;
     } catch (error) {
       console.error("[AuthContext] Login failed for:", email, error);
-      setLoading(false);
+      setLoading(false); // Ensure loading is false on error
       throw error;
     }
+    // setLoading(false) will be handled by onAuthStateChanged's final setLoading
   };
 
-  const register = async (name: string, email: string, password: string, role: UserRole): Promise<MockUserCredential | void> => {
+  const register = async (name: string, email: string, password: string, role: UserRole): Promise<void> => {
     setLoading(true);
     try {
-      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const newAuthUser = userCredential.user;
-      if (newAuthUser) {
-        const timestamp = new Date().toISOString();
-        const newUserProfile: UserProfile = {
-          uid: newAuthUser.uid,
-          email: newAuthUser.email,
-          name,
-          role,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-          ...(role === 'labour' ? {
-            availability: true,
-            skills: [],
-            city: '',
-            roleType: siteConfig.skills.length > 0 ? siteConfig.skills[0] : 'General Labour',
-            subscription: {
-              planId: 'none',
-              planType: 'none',
-              status: 'inactive',
-              validUntil: null,
-            }
-          } : {}),
-          ...(role === 'customer' ? {
-            subscription: {
-              planId: 'free_customer',
-              planType: 'free',
-              validUntil: null,
-              status: 'active',
-              jobPostLimit: 5, 
-              jobPostCount: 0
-            }
-          } : {}),
-        };
-        await db.collection("users").doc(newAuthUser.uid).set(newUserProfile);
-        console.log("[AuthContext] Registration successful, profile created for:", email, newUserProfile);
-        setUser(newAuthUser); // Explicitly set user for immediate effect
-        setUserData(newUserProfile); // Explicitly set userData here to ensure immediate update
-      }
-      return userCredential;
+      
+      const timestamp = serverTimestamp(); // Use Firestore server timestamp
+
+      const newUserProfile: UserProfile = {
+        uid: newAuthUser.uid,
+        email: newAuthUser.email,
+        name,
+        role,
+        createdAt: timestamp as any, // Will be converted by Firestore
+        updatedAt: timestamp as any, // Will be converted by Firestore
+        ...(role === 'labour' ? {
+          availability: true,
+          skills: [],
+          city: '',
+          roleType: siteConfig.skills.length > 0 ? siteConfig.skills[0] : 'General Labour',
+          subscription: {
+            planId: 'none',
+            planType: 'none',
+            status: 'inactive',
+            validUntil: null,
+          }
+        } : {}),
+        ...(role === 'customer' ? {
+          subscription: {
+            planId: 'free_customer',
+            planType: 'free',
+            validUntil: null,
+            status: 'active',
+            jobPostLimit: 5,
+            jobPostCount: 0
+          }
+        } : {}),
+      };
+      await setDoc(doc(db, "users", newAuthUser.uid), newUserProfile);
+      console.log("[AuthContext] Registration successful, profile created for:", email, newUserProfile);
+      setUser(newAuthUser); 
+      setUserData(newUserProfile); 
     } catch (error) {
       console.error("[AuthContext] Registration failed for:", email, error);
       throw error;
@@ -160,13 +156,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.log("[AuthContext] Logging out user:", user?.email);
     setLoading(true);
     try {
-      await auth.signOut();
+      await signOut(auth);
       // setUser and setUserData to null will be handled by onAuthStateChanged
     } catch (error) {
       console.error("[AuthContext] Logout error:", error);
-    } finally {
+      // Still set loading to false even if logout fails, though this is rare
       setLoading(false);
     }
+    // setLoading(false) will be handled by onAuthStateChanged's final setLoading
   };
 
   const isAdmin = userData?.role === "admin";

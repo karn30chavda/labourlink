@@ -27,6 +27,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { siteConfig } from "@/config/site";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { db, storage } from "@/lib/firebase"; 
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UploadCloud } from "lucide-react";
 
@@ -72,8 +74,8 @@ export function LabourProfileForm() {
   });
 
   useEffect(() => {
-    console.log("[LabourProfileForm] useEffect triggered. Current userData:", userData ? JSON.parse(JSON.stringify(userData)) : userData);
     if (userData) {
+      console.log("[LabourProfileForm] useEffect triggered. Current userData:", JSON.parse(JSON.stringify(userData)));
       const resetValues = {
         name: userData.name || "",
         phone: userData.phone || "",
@@ -83,17 +85,17 @@ export function LabourProfileForm() {
         availability: userData.availability || false,
         currentWorkSites: Array.isArray(userData.currentWorkSites) ? userData.currentWorkSites.join(", ") : userData.currentWorkSites || "",
         pastWorkSites: Array.isArray(userData.pastWorkSites) ? userData.pastWorkSites.join(", ") : userData.pastWorkSites || "",
-        profilePhotoUrl: userData.profilePhotoUrl || null, 
-        newProfilePhoto: null, 
+        profilePhotoUrl: userData.profilePhotoUrl || null,
+        newProfilePhoto: null,
       };
       console.log("[LabourProfileForm] Resetting form with values:", JSON.parse(JSON.stringify(resetValues)));
       form.reset(resetValues);
       console.log("[LabourProfileForm] Attempting to set imagePreview with userData.profilePhotoUrl:", userData.profilePhotoUrl);
       setImagePreview(userData.profilePhotoUrl || null);
     } else {
-        console.log("[LabourProfileForm] useEffect triggered but userData is null/undefined. Resetting form to defaults.");
-        form.reset({ name: "", phone: "", roleType: "", skills: [], city: "", availability: false, currentWorkSites: "", pastWorkSites: "", profilePhotoUrl: null, newProfilePhoto: null });
-        setImagePreview(null);
+      console.log("[LabourProfileForm] useEffect triggered but userData is null/undefined. Resetting form to defaults.");
+      form.reset({ name: "", phone: "", roleType: "", skills: [], city: "", availability: false, currentWorkSites: "", pastWorkSites: "", profilePhotoUrl: null, newProfilePhoto: null });
+      setImagePreview(null);
     }
   }, [userData, form]);
 
@@ -108,9 +110,7 @@ export function LabourProfileForm() {
       reader.readAsDataURL(file);
     } else {
       form.setValue("newProfilePhoto", null);
-      // When file input is cleared, revert preview to the currently saved profilePhotoUrl from form state
-      // This form state value should have been set by form.reset() in the useEffect based on userData
-      setImagePreview(form.getValues("profilePhotoUrl")); 
+      setImagePreview(form.getValues("profilePhotoUrl"));
     }
   };
 
@@ -123,18 +123,17 @@ export function LabourProfileForm() {
     console.log("[LabourProfileForm] Submitting form data:", JSON.parse(JSON.stringify(data)));
     console.log("[LabourProfileForm] Submitting city:", data.city);
 
-    let uploadedPhotoUrl = data.profilePhotoUrl; // Start with existing or null
+    let uploadedPhotoUrl = data.profilePhotoUrl; 
 
-    if (data.newProfilePhoto) {
+    if (data.newProfilePhoto && storage) { // Check if storage is available
         try {
-            // Simulate upload to mock storage
-            const storageRef = storage.ref(`profilePictures/${userData.uid}/${data.newProfilePhoto.name}`);
-            const uploadTask = await storageRef.put(data.newProfilePhoto as File); // Cast to File for mock
-            uploadedPhotoUrl = await uploadTask.snapshot.ref.getDownloadURL(); // This will be the NEW mock URL
-            toast({ title: "Profile Picture Updated", description: "New picture 'uploaded' (mock)." });
+            const fileRef = storageRef(storage, `profilePictures/${userData.uid}/${data.newProfilePhoto.name}`);
+            const snapshot = await uploadBytes(fileRef, data.newProfilePhoto as File);
+            uploadedPhotoUrl = await getDownloadURL(snapshot.ref);
+            toast({ title: "Profile Picture Updated", description: "New picture uploaded." });
         } catch (error) {
-            console.error("Mock image upload error:", error);
-            toast({ title: "Image Upload Failed", description: "Could not 'upload' image (mock).", variant: "destructive" });
+            console.error("Real image upload error:", error);
+            toast({ title: "Image Upload Failed", description: "Could not upload image.", variant: "destructive" });
             setIsLoading(false);
             return;
         }
@@ -149,19 +148,24 @@ export function LabourProfileForm() {
       availability: data.availability,
       currentWorkSites: data.currentWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
       pastWorkSites: data.pastWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
-      profilePhotoUrl: uploadedPhotoUrl, // This will be the NEW mock URL if a new photo was "uploaded", or the existing one if not.
-      updatedAt: new Date().toISOString(),
+      profilePhotoUrl: uploadedPhotoUrl,
+      updatedAt: serverTimestamp() as any,
     };
     
     console.log("[LabourProfileForm] profileDataToUpdate payload:", JSON.parse(JSON.stringify(profileDataToUpdate)));
 
     try {
-      await db.collection("users").doc(userData.uid).update(profileDataToUpdate);
-      await refreshUserData(); // This fetches the updated data and sets userData in context
-      toast({
-        title: "Profile Updated",
-        description: "Your profile information has been successfully updated.",
-      });
+      if (db) { // Check if db is available
+        const userDocRef = doc(db, "users", userData.uid);
+        await updateDoc(userDocRef, profileDataToUpdate);
+        await refreshUserData(); 
+        toast({
+          title: "Profile Updated",
+          description: "Your profile information has been successfully updated.",
+        });
+      } else {
+        throw new Error("Database service is not available.");
+      }
     } catch (error: any) {
       console.error("Profile Update Error:", error);
       toast({
@@ -171,8 +175,6 @@ export function LabourProfileForm() {
       });
     } finally {
       setIsLoading(false);
-      // The form field newProfilePhoto is correctly reset to null by the useEffect -> form.reset
-      // after userData is refreshed and the component re-renders.
     }
   }
   
@@ -186,7 +188,6 @@ export function LabourProfileForm() {
     return names[0].substring(0, 2).toUpperCase();
   }
 
-
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-xl">
       <CardHeader>
@@ -198,7 +199,7 @@ export function LabourProfileForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="flex flex-col items-center space-y-4">
               <Avatar className="h-32 w-32 border-4 border-primary shadow-lg">
-                <AvatarImage src={imagePreview || undefined} alt={userData?.name} data-ai-hint="profile preview" />
+                <AvatarImage src={imagePreview || undefined} alt={userData?.name || "User Profile"} data-ai-hint="profile preview" />
                 <AvatarFallback className="text-3xl">
                   {getInitials(form.getValues("name") || userData?.name)}
                 </AvatarFallback>
@@ -206,7 +207,7 @@ export function LabourProfileForm() {
               <FormField
                 control={form.control}
                 name="newProfilePhoto"
-                render={() => ( // field isn't directly used for <Input type="file"> with custom handler
+                render={() => ( 
                   <FormItem className="w-full max-w-xs">
                     <FormLabel htmlFor="profile-picture-upload" className="sr-only">Upload new profile picture</FormLabel>
                     <FormControl>
@@ -225,12 +226,12 @@ export function LabourProfileForm() {
                                 type="file" 
                                 className="sr-only" 
                                 accept="image/png, image/jpeg, image/jpg"
-                                onChange={handleFileChange} // Use custom handler
+                                onChange={handleFileChange}
                               />
                             </label>
                             <p className="pl-1">or drag and drop</p>
                           </div>
-                          <p className="text-xs text-muted-foreground">PNG, JPG up to 2MB (mock)</p>
+                          <p className="text-xs text-muted-foreground">PNG, JPG up to 2MB</p>
                         </div>
                       </div>
                     </FormControl>
@@ -418,4 +419,3 @@ export function LabourProfileForm() {
     </Card>
   );
 }
-

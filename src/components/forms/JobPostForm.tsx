@@ -25,7 +25,8 @@ import type { Job } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { generateJobDescription as genJobDescAiFlow } from '@/ai/flows/job-description-generator';
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase"; // Using real Firebase
+import { collection, addDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 const jobPostFormSchema = z.object({
@@ -41,7 +42,7 @@ const jobPostFormSchema = z.object({
 type JobPostFormValues = z.infer<typeof jobPostFormSchema>;
 
 interface JobPostFormProps {
-  job?: Job;
+  job?: Job; // Job prop is now fully typed
   isEditing?: boolean;
 }
 
@@ -61,7 +62,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       location: job.location,
       duration: job.duration,
       budget: job.budget || "",
-      descriptionKeywords: "",
+      descriptionKeywords: "", // Keywords not stored with job, always empty on edit
     } : {
       title: "",
       descriptionKeywords: "",
@@ -99,7 +100,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     }
     setIsLoading(true);
 
-    const jobDataPayload = {
+    const jobDataPayload: Omit<Job, 'id' | 'createdAt' | 'updatedAt'> & { updatedAt?: any, createdAt?: any } = { // Omit id, allow serverTimestamp for dates
       customerId: userData.uid,
       customerName: userData.name || "Unknown Customer",
       title: data.title,
@@ -108,9 +109,8 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       location: data.location,
       duration: data.duration,
       budget: data.budget || "",
-      status: 'open' as Job['status'], // Changed for immediate visibility
-      updatedAt: new Date().toISOString(),
-      approvedByAdmin: true, // Changed for immediate visibility
+      status: 'open', 
+      approvedByAdmin: true, // For live app, this should be false and go through an approval flow
     };
     
     console.log("[JobPostForm] Submitting job. ID (if editing):", job?.id);
@@ -119,15 +119,23 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
 
     try {
       if (isEditing && job?.id) {
-        await db.collection("jobs").doc(job.id).update(jobDataPayload);
+        const jobDocRef = doc(db, "jobs", job.id);
+        await updateDoc(jobDocRef, {
+            ...jobDataPayload,
+            updatedAt: serverTimestamp()
+        });
         console.log("[JobPostForm] Update call completed for job ID:", job.id);
         toast({ title: "Job Updated", description: "Your job post has been updated." });
       } else {
-        const newJobRef = await db.collection("jobs").add({ ...jobDataPayload, createdAt: new Date().toISOString() });
-        console.log("[JobPostForm] Add call completed. New job ID:", newJobRef.id);
+        await addDoc(collection(db, "jobs"), { 
+            ...jobDataPayload, 
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp() 
+        });
         toast({ title: "Job Posted", description: "Your job post is now live." });
       }
       router.push("/customer/jobs");
+      form.reset(); // Reset form after successful submission
     } catch (error: any) {
       console.error("Job Post/Update Error:", error);
       toast({

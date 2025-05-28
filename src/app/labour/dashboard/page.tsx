@@ -7,82 +7,135 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { getRelevantJobNotifications } from "@/ai/flows/relevant-job-notifications";
-import type { Job, JobPosting } from "@/types"; 
+import type { Job, JobPosting, Application } from "@/types"; 
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase"; 
+import { collection, query, where, getDocs, Timestamp, orderBy } from "firebase/firestore";
 import Link from "next/link";
 import { AlertCircle, Briefcase, CheckCircle, Eye, FileText, Loader2, ShieldCheck, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-
-const mockAppliedJobs: (Job & { applicationStatus: string; dateApplied: string })[] = [
-  { id: 'job1', title: 'Urgent Plumbing for New Condo', customerId: 'cust1', customerName: 'ABC Builders', requiredSkill: 'Plumbing', location: 'MockCity', duration: '1 week', status: 'open', createdAt: new Date().toISOString(), applicationStatus: 'Pending', dateApplied: '2024-07-20' },
-  { id: 'job3', title: 'Electrical Rewiring Project', customerId: 'cust2', customerName: 'Home Renovations Ltd.', requiredSkill: 'Electrical', location: 'MockCity', duration: '2 weeks', status: 'open', createdAt: new Date().toISOString(), applicationStatus: 'Shortlisted', dateApplied: '2024-07-18' },
-];
+import { format } from 'date-fns';
 
 
 export default function LabourDashboardPage() {
   const { userData } = useAuth();
   const [relevantJobs, setRelevantJobs] = useState<JobPosting[]>([]);
-  const [loadingJobs, setLoadingJobs] = useState(true);
-  const [errorJobs, setErrorJobs] = useState<string | null>(null);
+  const [loadingAiJobs, setLoadingAiJobs] = useState(true);
+  const [errorAiJobs, setErrorAiJobs] = useState<string | null>(null);
+  const [recentApplications, setRecentApplications] = useState<Application[]>([]);
+  const [loadingApplications, setLoadingApplications] = useState(true);
+
 
   const isSubscribed = userData?.subscription?.status === 'active';
 
   useEffect(() => {
-    if (userData && userData.role === 'labour' && userData.skills && userData.city) {
-      const fetchJobs = async () => {
-        try {
-          setLoadingJobs(true);
-          // Only fetch jobs if subscribed, or adjust logic as needed
-          if (!isSubscribed) {
-            setErrorJobs("Please subscribe to view AI job suggestions.");
+    if (userData && userData.role === 'labour' && db) { // Check for db
+      // Fetch AI Suggested Jobs
+      const fetchAiJobs = async () => {
+        if (!userData.skills || !userData.city) {
+            setErrorAiJobs("Please complete your profile (skills and city) to see job suggestions.");
+            setLoadingAiJobs(false);
             setRelevantJobs([]);
-            setLoadingJobs(false);
             return;
-          }
+        }
+        if (!isSubscribed) {
+            setErrorAiJobs("Activate your subscription to see AI job suggestions and apply for jobs.");
+            setLoadingAiJobs(false);
+            setRelevantJobs([]);
+            return;
+        }
 
-          const jobsSnapshot = await db.collection("jobs").where("status", "==", "open").get();
+        setLoadingAiJobs(true);
+        try {
+          const jobsQuery = query(
+            collection(db, "jobs"), 
+            where("status", "==", "open"),
+            where("approvedByAdmin", "==", true),
+            where("location", "==", userData.city) // Filter by user's city for relevance
+          );
+          const jobsSnapshot = await getDocs(jobsQuery);
           
-          const allOpenJobs: JobPosting[] = jobsSnapshot.docs.map(doc => {
-            const jobData = doc.data() as Job; 
+          const allOpenJobsInCity: JobPosting[] = jobsSnapshot.docs.map(docSnap => {
+            const jobData = docSnap.data() as Job; 
             return {
               title: jobData.title,
               description: jobData.description,
               requiredSkill: jobData.requiredSkill,
               location: jobData.location,
             };
-          }).filter(job => job.location === userData.city); 
+          });
 
-          if (allOpenJobs.length > 0 && userData.skills) { 
+          if (allOpenJobsInCity.length > 0 && userData.skills) { 
             const aiInput = {
               laborSkills: userData.skills || [], 
               laborCity: userData.city || '', 
-              jobPostings: allOpenJobs,
+              jobPostings: allOpenJobsInCity,
             };
             const result = await getRelevantJobNotifications(aiInput);
             setRelevantJobs(result.relevantJobs.slice(0, 5)); 
           } else {
             setRelevantJobs([]);
           }
-          setErrorJobs(null);
+          setErrorAiJobs(null);
         } catch (err) {
           console.error("Error fetching relevant jobs:", err);
-          setErrorJobs("Failed to load relevant job suggestions.");
+          setErrorAiJobs("Failed to load relevant job suggestions.");
           setRelevantJobs([]);
         } finally {
-          setLoadingJobs(false);
+          setLoadingAiJobs(false);
         }
       };
-      fetchJobs();
-    } else if (userData && (userData.role !== 'labour' || !userData.skills || !userData.city)) {
-        setLoadingJobs(false);
-        setErrorJobs("Please complete your profile (skills and city) to see job suggestions.");
+      fetchAiJobs();
+
+      // Fetch Recent Applications
+      const fetchRecentApplications = async () => {
+        setLoadingApplications(true);
+        try {
+          const appsQuery = query(
+            collection(db, "applications"),
+            where("labourId", "==", userData.uid),
+            orderBy("dateApplied", "desc"),
+            // limit(3) // If you only want the top 3 for the dashboard
+          );
+          const appsSnapshot = await getDocs(appsQuery);
+          const appsData = appsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data()} as Application));
+          setRecentApplications(appsData.slice(0,3)); // Take first 3 for dashboard
+        } catch (error) {
+          console.error("Error fetching recent applications:", error);
+          toast({ title: "Error", description: "Could not fetch recent applications.", variant: "destructive" });
+        } finally {
+          setLoadingApplications(false);
+        }
+      };
+      fetchRecentApplications();
+
+    } else if (userData && (userData.role !== 'labour')) {
+        setLoadingAiJobs(false);
+        setLoadingApplications(false);
+    } else if (userData && userData.role === 'labour' && (!userData.skills || !userData.city)) {
+        setErrorAiJobs("Please complete your profile (skills and city) to see job suggestions.");
+        setLoadingAiJobs(false);
+        setRelevantJobs([]);
     } else if (userData && userData.role === 'labour' && !isSubscribed) {
-        setLoadingJobs(false);
-        setErrorJobs("Activate your subscription to see AI job suggestions and apply for jobs.");
+        setErrorAiJobs("Activate your subscription to see AI job suggestions and apply for jobs.");
+        setLoadingAiJobs(false);
         setRelevantJobs([]);
     }
-  }, [userData, isSubscribed]);
+
+
+  }, [userData, isSubscribed]); // Added toast to dependency array (though it's from a hook, generally stable)
+  
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return 'N/A';
+    if (dateValue.toDate && typeof dateValue.toDate === 'function') { // Firestore Timestamp
+      return format(dateValue.toDate(), 'PPP');
+    }
+    try { // Date object or valid date string
+      return format(new Date(dateValue), 'PPP');
+    } catch (e) {
+      return 'Invalid Date';
+    }
+  };
 
   return (
     <AuthGuard>
@@ -105,7 +158,7 @@ export default function LabourDashboardPage() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{mockAppliedJobs.length}</div>
+                <div className="text-2xl font-bold">{loadingApplications ? <Loader2 className="h-6 w-6 animate-spin" /> : recentApplications.filter(app => app.status === 'Pending' || app.status === 'Shortlisted').length}</div>
                 <p className="text-xs text-muted-foreground">
                   Jobs you&apos;ve applied to
                 </p>
@@ -163,23 +216,23 @@ export default function LabourDashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loadingJobs && (
+              {loadingAiJobs && (
                 <div className="flex items-center justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   <p className="ml-2">Finding relevant jobs...</p>
                 </div>
               )}
-              {errorJobs && !loadingJobs && (
+              {errorAiJobs && !loadingAiJobs && (
                 <div className="text-red-500 flex items-center p-4 bg-red-50 dark:bg-red-900/30 rounded-md">
-                  <AlertCircle className="mr-2 h-5 w-5"/> {errorJobs}
-                  {errorJobs.includes("profile") && <Button variant="link" asChild><Link href="/labour/profile">Update Profile</Link></Button>}
-                  {errorJobs.includes("subscription") && <Button variant="link" asChild><Link href="/labour/subscription">View Plans</Link></Button>}
+                  <AlertCircle className="mr-2 h-5 w-5"/> {errorAiJobs}
+                  {errorAiJobs.includes("profile") && <Button variant="link" asChild><Link href="/labour/profile">Update Profile</Link></Button>}
+                  {errorAiJobs.includes("subscription") && <Button variant="link" asChild><Link href="/labour/subscription">View Plans</Link></Button>}
                 </div>
               )}
-              {!loadingJobs && !errorJobs && relevantJobs.length === 0 && isSubscribed && (
+              {!loadingAiJobs && !errorAiJobs && relevantJobs.length === 0 && isSubscribed && (
                 <p className="text-muted-foreground">No specific job suggestions for you right now. Try browsing all jobs or update your profile.</p>
               )}
-              {!loadingJobs && !errorJobs && relevantJobs.length > 0 && isSubscribed && (
+              {!loadingAiJobs && !errorAiJobs && relevantJobs.length > 0 && isSubscribed && (
                 <ul className="space-y-4">
                   {relevantJobs.map((job, index) => (
                     <li key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
@@ -197,7 +250,7 @@ export default function LabourDashboardPage() {
                   ))}
                 </ul>
               )}
-               {!isSubscribed && !loadingJobs && (
+               {!isSubscribed && !loadingAiJobs && (
                  <div className="text-center py-8">
                     <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-3"/>
                     <p className="text-muted-foreground">Your AI job suggestions are waiting for you!</p>
@@ -215,28 +268,30 @@ export default function LabourDashboardPage() {
               <CardDescription>Track the status of jobs you&apos;ve applied for.</CardDescription>
             </CardHeader>
             <CardContent>
-              {mockAppliedJobs.length === 0 ? (
+              {loadingApplications ? (
+                 <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading recent applications...</p></div>
+              ) : recentApplications.length === 0 ? (
                 <p className="text-muted-foreground">You haven&apos;t applied to any jobs yet. <Link href="/jobs" className="text-primary hover:underline">Find jobs now!</Link></p>
               ) : (
                 <div className="space-y-4">
-                  {mockAppliedJobs.slice(0,3).map(job => (
-                    <div key={job.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-lg hover:shadow-md transition-shadow">
+                  {recentApplications.map(app => (
+                    <div key={app.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-lg hover:shadow-md transition-shadow">
                       <div>
-                        <h3 className="font-semibold text-lg">{job.title}</h3>
-                        <p className="text-sm text-muted-foreground">Applied on: {job.dateApplied}</p>
+                        <h3 className="font-semibold text-lg">{app.jobTitle}</h3>
+                        <p className="text-sm text-muted-foreground">Applied on: {formatDate(app.dateApplied)}</p>
                       </div>
                       <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                        <Badge variant={job.applicationStatus === 'Shortlisted' ? 'default' : job.applicationStatus === 'Pending' ? 'secondary' : 'outline'}
-                               className={job.applicationStatus === 'Shortlisted' ? 'bg-green-500 text-white' : ''}>
-                          {job.applicationStatus}
+                        <Badge variant={app.status === 'Shortlisted' ? 'default' : app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : 'outline'}
+                               className={app.status === 'Shortlisted' ? 'bg-blue-500 text-white' : app.status === 'Accepted' ? 'bg-green-500 text-white' : ''}>
+                          {app.status.replace(/_/g, ' ')}
                         </Badge>
                          <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/jobs?title=${encodeURIComponent(job.title)}`}><Eye className="h-4 w-4" /></Link>
+                          <Link href={`/jobs?title=${encodeURIComponent(app.jobTitle || "")}`}><Eye className="h-4 w-4" /></Link>
                         </Button>
                       </div>
                     </div>
                   ))}
-                   {mockAppliedJobs.length > 3 && (
+                   {recentApplications.length > 0 && ( // Show "View All" if there are ANY recent, implying there could be more
                     <div className="text-center mt-4">
                         <Button variant="link" asChild>
                             <Link href="/labour/applications">View All Applications</Link>

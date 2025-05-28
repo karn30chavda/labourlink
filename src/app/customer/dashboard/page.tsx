@@ -10,7 +10,8 @@ import { matchLabor } from "@/ai/flows/labor-match";
 import type { Job, Labor, Application, UserProfile } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase"; // Using real Firebase
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, orderBy } from "firebase/firestore";
 import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle, FileText, UserCheck, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +27,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { format } from 'date-fns';
+
 
 export default function CustomerDashboardPage() {
   const { userData } = useAuth();
@@ -41,29 +44,34 @@ export default function CustomerDashboardPage() {
   const [matchingError, setMatchingError] = useState<string | null>(null);
 
   const fetchCustomerData = async () => {
-    if (!userData?.uid) return;
+    if (!userData?.uid || !db) { // Check if db is available
+      setLoadingJobs(false);
+      setLoadingApplications(false);
+      return;
+    }
 
     setLoadingJobs(true);
     setLoadingApplications(true);
 
     try {
       // Fetch customer's jobs
-      const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
+      const jobsQuery = query(collection(db, "jobs"), where("customerId", "==", userData.uid), orderBy("createdAt", "desc"));
+      const jobsSnapshot = await getDocs(jobsQuery);
       const jobsData = jobsSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as Job))
-          .filter(job => job.status !== 'deleted')
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Job))
+          .filter(job => job.status !== 'deleted');
       setCustomerJobs(jobsData);
 
       // Fetch applications for these jobs
       if (jobsData.length > 0) {
         const customerJobIds = jobsData.map(job => job.id);
-        const allAppsSnapshot = await db.collection("applications").get();
-        const allApps = allAppsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
-
-        const relevantApplications = allApps
-          .filter(app => customerJobIds.includes(app.jobId))
-          .sort((a, b) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime());
+        // Firestore doesn't directly support 'in' queries with more than 10 items easily without multiple queries.
+        // For simplicity with potentially many jobs, fetch all applications and filter client-side.
+        // For production with many applications, consider restructuring or server-side filtering.
+        const appsQuery = query(collection(db, "applications"), where("jobId", "in", customerJobIds.slice(0,30)), orderBy("dateApplied", "desc")); // Firestore 'in' limited to 30
+        const allAppsSnapshot = await getDocs(appsQuery);
+        const relevantApplications = allAppsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Application));
+        
         setJobApplications(relevantApplications);
       } else {
         setJobApplications([]);
@@ -79,7 +87,7 @@ export default function CustomerDashboardPage() {
   };
 
   useEffect(() => {
-    if (userData?.uid) {
+    if (userData?.uid && db) {
         fetchCustomerData();
     }
   }, [userData?.uid, toast]);
@@ -90,22 +98,22 @@ export default function CustomerDashboardPage() {
   const newApplicationsCount = jobApplications.filter(app => app.status === 'Pending').length;
 
   const handleFindMatch = async (job: Job) => {
+    if (!db) return;
     setSelectedJobForMatch(job);
     setMatchingLoading(true);
     setMatchingError(null);
     setBestMatch(null);
 
     try {
-      // Fetch all labour users from the mock database
-      const laboursSnapshot = await db.collection("users").where("role", "==", "labour").get();
-      const allLabourProfiles = laboursSnapshot.docs.map(doc => doc.data() as UserProfile);
+      const laboursQuery = query(collection(db, "users"), where("role", "==", "labour"));
+      const laboursSnapshot = await getDocs(laboursQuery);
+      const allLabourProfiles = laboursSnapshot.docs.map(docSnap => docSnap.data() as UserProfile);
 
-      // Transform UserProfile[] to Labor[] for the AI flow
       const availableLaborsForAI: Labor[] = allLabourProfiles
-        .filter(profile => profile.availability && profile.city && profile.skills) // Ensure essential fields exist
+        .filter(profile => profile.availability && profile.city && profile.skills) 
         .map(profile => ({
           name: profile.name,
-          role: profile.roleType || "Skilled Labour", // Use roleType or a default
+          role: profile.roleType || "Skilled Labour", 
           skills: profile.skills || [],
           availability: profile.availability || false,
           city: profile.city || "",
@@ -119,7 +127,7 @@ export default function CustomerDashboardPage() {
       );
 
       if (relevantLabors.length === 0) {
-        setMatchingError("No available labours found matching the job's city and skill requirements for AI matching in the current database.");
+        setMatchingError("No available labours found matching the job's city and skill requirements in the current database for AI matching.");
         setMatchingLoading(false);
         return;
       }
@@ -138,8 +146,9 @@ export default function CustomerDashboardPage() {
   };
 
   const handleDeleteJob = async (jobId: string) => {
+    if (!db) return;
     try {
-      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date().toISOString() });
+      await updateDoc(doc(db, "jobs", jobId), { status: 'deleted', updatedAt: serverTimestamp() });
       setCustomerJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
       toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
     } catch (error) {
@@ -149,8 +158,9 @@ export default function CustomerDashboardPage() {
   };
 
   const handleApplicationAction = async (appId: string, action: 'Accepted' | 'Rejected_by_customer') => {
+    if(!db) return;
     try {
-      await db.collection("applications").doc(appId).update({ status: action, updatedAt: new Date().toISOString() });
+      await updateDoc(doc(db, "applications", appId), { status: action, updatedAt: serverTimestamp() });
       setJobApplications(prevApps => prevApps.map(app => app.id === appId ? { ...app, status: action } : app));
       toast({ title: `Application ${action.replace('_by_customer', '')}`, description: `The application has been marked as ${action.toLowerCase().replace('_by_customer', '')}.` });
     } catch (error) {
@@ -158,6 +168,21 @@ export default function CustomerDashboardPage() {
         toast({ title: "Error", description: "Could not update application status.", variant: "destructive"});
     }
   };
+  
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return 'N/A';
+    // Check if it's a Firestore Timestamp
+    if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+      return format(dateValue.toDate(), 'PPP'); // e.g., Jul 24, 2024
+    }
+    // Check if it's already a Date object or a valid date string
+    try {
+      return format(new Date(dateValue), 'PPP');
+    } catch (e) {
+      return 'Invalid Date';
+    }
+  };
+
 
   return (
     <AuthGuard>
@@ -331,17 +356,17 @@ export default function CustomerDashboardPage() {
                           <Badge
                             variant={app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : app.status === 'Rejected_by_customer' ? 'destructive' : 'outline'}
                             className={cn(
-                              'whitespace-nowrap text-center',
+                              'whitespace-nowrap',
                               app.status === 'Accepted' ? 'bg-green-500 text-white' : '',
-                              app.status === 'Rejected_by_customer' ? 'px-3 py-0.5 mt-0.5' : '',
-                              app.status === 'Pending' ? 'text-center' : ''
+                              app.status === 'Rejected_by_customer' ? 'px-3 py-0.5 mt-0.5 text-center' : '',
+                              app.status === 'Pending' ? 'text-center whitespace-nowrap' : ''
                             )}
                           >
                             {app.status.replace(/_/g, ' ')}
                           </Badge>
                         </div>
                          <CardDescription>
-                          Applicant: {app.labourName} ({app.labourRoleType || 'N/A'}) applied on {new Date(app.dateApplied).toLocaleDateString()}
+                          Applicant: {app.labourName} ({app.labourRoleType || 'N/A'}) applied on {formatDate(app.dateApplied)}
                         </CardDescription>
                       </CardHeader>
                       {app.message && <CardContent><p className="text-sm italic text-muted-foreground p-2 bg-muted/30 rounded-md border">Message: "{app.message}"</p></CardContent>}

@@ -10,6 +10,7 @@ import type { Job } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { db } from "@/lib/firebase"; 
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, Timestamp, orderBy } from "firebase/firestore";
 import { AlertCircle, Briefcase, Edit3, Eye, Loader2, PlusCircle, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +26,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { format } from 'date-fns';
 
 export default function CustomerJobsPage() {
   const { userData } = useAuth();
@@ -35,14 +37,22 @@ export default function CustomerJobsPage() {
 
   useEffect(() => {
     const fetchJobs = async () => {
-      if (!userData?.uid) return;
+      if (!userData?.uid || !db) { // Check if db is available
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
-        const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
+        const jobsQuery = query(
+          collection(db, "jobs"), 
+          where("customerId", "==", userData.uid),
+          orderBy("createdAt", "desc") // Order by creation date, newest first
+        );
+        const jobsSnapshot = await getDocs(jobsQuery);
+        
         const jobsData = jobsSnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as Job))
-            .filter(job => job.status !== 'deleted') // Ensure soft-deleted jobs are not shown
-            .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
+            .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Job))
+            .filter(job => job.status !== 'deleted'); 
         
         console.log("[CustomerJobsPage] Fetched jobs:", JSON.parse(JSON.stringify(jobsData)));
         setJobs(jobsData);
@@ -56,7 +66,7 @@ export default function CustomerJobsPage() {
     if (userData?.uid) {
         fetchJobs();
     }
-  }, [userData?.uid, toast]); // Removed router.asPath as it's not ideal for mock and not the root cause
+  }, [userData?.uid, toast]); 
 
   const filteredJobs = jobs.filter(job =>
     job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -64,9 +74,9 @@ export default function CustomerJobsPage() {
   );
 
   const handleDeleteJob = async (jobId: string) => {
+    if (!db) return;
     try {
-      // For mock db, update will mark as deleted. For real Firestore, you might use a specific "delete" function or update status.
-      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date().toISOString() });
+      await updateDoc(doc(db, "jobs", jobId), { status: 'deleted', updatedAt: serverTimestamp() });
       setJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
       toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
     } catch (error) {
@@ -74,6 +84,21 @@ export default function CustomerJobsPage() {
       toast({ title: "Error", description: "Failed to delete the job post.", variant: "destructive" });
     }
   };
+  
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return 'N/A';
+    // Check if it's a Firestore Timestamp
+    if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+      return format(dateValue.toDate(), 'PPP'); // e.g., Jul 24, 2024
+    }
+    // Check if it's already a Date object or a valid date string
+    try {
+      return format(new Date(dateValue), 'PPP');
+    } catch (e) {
+      return 'Invalid Date';
+    }
+  };
+
 
   const getStatusBadgeVariant = (status: Job['status']) => {
     switch (status) {
@@ -148,9 +173,9 @@ export default function CustomerJobsPage() {
                     <CardDescription>
                       Skill: {job.requiredSkill} | Location: {job.location}
                       <br />
-                      Posted: {new Date(job.createdAt as string).toLocaleDateString()}
+                      Posted: {formatDate(job.createdAt)}
                       {job.updatedAt && job.updatedAt !== job.createdAt && (
-                        <> | Updated: {new Date(job.updatedAt as string).toLocaleDateString()}</>
+                        <> | Updated: {formatDate(job.updatedAt)}</>
                       )}
                     </CardDescription>
                   </CardHeader>
@@ -192,5 +217,3 @@ export default function CustomerJobsPage() {
     </AuthGuard>
   );
 }
-
-    

@@ -1,4 +1,5 @@
 
+import type { Timestamp } from "firebase/firestore";
 
 export interface UserProfile {
   uid: string;
@@ -19,14 +20,14 @@ export interface UserProfile {
   subscription?: {
     planId: string; 
     planType: string; 
-    validUntil: string | null; // Changed from Date | string | null to string | null for localStorage
+    validUntil: Timestamp | string | null; // Can be Firestore Timestamp or ISO string
     razorpayPaymentId?: string; 
     status: 'active' | 'inactive' | 'expired' | 'none';
     jobPostLimit?: number; 
     jobPostCount?: number; 
   };
-  createdAt: string; // Changed from Date | string
-  updatedAt?: string; // Changed from Date | string
+  createdAt: Timestamp | string; // Can be Firestore Timestamp or ISO string
+  updatedAt?: Timestamp | string; // Can be Firestore Timestamp or ISO string
 }
 
 export interface Job {
@@ -40,8 +41,8 @@ export interface Job {
   duration: string; 
   budget?: string; 
   status: 'pending_approval' | 'open' | 'assigned' | 'in_progress' | 'completed' | 'cancelled_by_customer' | 'expired' | 'deleted';
-  createdAt: string; // Changed from Date | string
-  updatedAt?: string; // Changed from Date | string
+  createdAt: Timestamp | string; // Can be Firestore Timestamp or ISO string
+  updatedAt?: Timestamp | string; // Can be Firestore Timestamp or ISO string
   approvedByAdmin?: boolean;
   assignedLabourId?: string; 
 }
@@ -50,18 +51,18 @@ export interface Application {
   id: string;
   labourId: string;
   labourName?: string;
-  labourRoleType?: string; // Added to store labour's primary role/skill
+  labourRoleType?: string; 
   jobId: string;
   jobTitle?: string;
   customerId?: string; 
   customerName?: string;
   message?: string; 
-  dateApplied: string; // Changed from Date | string
+  dateApplied: Timestamp | string; // Can be Firestore Timestamp or ISO string
   status: 'Pending' | 'Shortlisted' | 'Accepted' | 'Rejected_by_customer' | 'Withdrawn_by_labour';
   proposedRate?: string; 
   jobRequiredSkill?: string;
   jobLocation?: string;
-  updatedAt?: string; // Added for consistency
+  updatedAt?: Timestamp | string; 
 }
 
 export interface Payment {
@@ -76,7 +77,7 @@ export interface Payment {
   amount: number;
   currency: 'INR';
   status: 'created' | 'authorized' | 'captured' | 'refunded' | 'failed';
-  createdAt: string; // Changed from Date | string
+  createdAt: Timestamp | string; // Can be Firestore Timestamp or ISO string
 }
 
 export type UserRole = 'labour' | 'customer' | 'admin';
@@ -87,7 +88,7 @@ export interface Labor { // This seems to be for the AI flow, keep as is
   skills: string[];
   availability: boolean;
   city: string;
-  pastWorkSites: string[];
+  pastWorkingSites: string[];
 }
 
 export interface JobPosting { // This seems to be for the AI flow, keep as is
@@ -97,7 +98,7 @@ export interface JobPosting { // This seems to be for the AI flow, keep as is
   location: string;
 }
 
-// Mock Auth Types - Keep as is
+// Mock Auth Types - Keep as is for mock environment if needed alongside real Firebase
 export interface MockAuthUser {
   uid: string;
   email: string | null;
