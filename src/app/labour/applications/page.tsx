@@ -4,13 +4,25 @@
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; // Added CardFooter
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import type { Application, Job } from "@/types"; // Assuming Application type exists
+import type { Application, Job } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Briefcase, Eye, FileText, Info, Loader2 } from "lucide-react";
+import { Briefcase, Eye, FileText, Info, Loader2, Trash2 } from "lucide-react"; // Added Trash2
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // Mock data for applied jobs - in a real app, this would be fetched
 const mockFetchedApplications: (Application & { jobDetails?: Partial<Job> })[] = [
@@ -46,17 +58,14 @@ const mockFetchedApplications: (Application & { jobDetails?: Partial<Job> })[] =
 
 export default function LabourApplicationsPage() {
   const { userData } = useAuth();
+  const { toast } = useToast();
   const [applications, setApplications] = useState<(Application & { jobDetails?: Partial<Job> })[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate fetching applications for the current labour user
     if (userData?.uid) {
       setLoading(true);
-      // In a real app, fetch applications from your backend where labourId === userData.uid
-      // And potentially join with job details.
       setTimeout(() => {
-        // Filter mock applications by labourUID for this example
         const userApplications = mockFetchedApplications.filter(app => app.labourId === userData.uid);
         setApplications(userApplications);
         setLoading(false);
@@ -66,11 +75,23 @@ export default function LabourApplicationsPage() {
     }
   }, [userData?.uid]);
 
+  const handleWithdrawApplication = (applicationId: string) => {
+    setApplications(prevApplications => 
+      prevApplications.map(app => 
+        app.id === applicationId ? { ...app, status: 'Withdrawn_by_labour' } : app
+      )
+    );
+    toast({
+      title: "Application Withdrawn",
+      description: "You have successfully withdrawn your application.",
+    });
+  };
+
   const getStatusBadgeVariant = (status: Application['status']) => {
     switch (status) {
       case 'Pending': return 'secondary';
-      case 'Shortlisted': return 'default'; // Or a specific color for shortlisted
-      case 'Accepted': return 'default'; // Green for accepted
+      case 'Shortlisted': return 'default'; 
+      case 'Accepted': return 'default'; 
       case 'Rejected_by_customer': return 'destructive';
       case 'Withdrawn_by_labour': return 'outline';
       default: return 'outline';
@@ -80,6 +101,7 @@ export default function LabourApplicationsPage() {
     switch (status) {
       case 'Shortlisted': return 'bg-blue-500 text-white';
       case 'Accepted': return 'bg-green-500 text-white';
+      case 'Withdrawn_by_labour': return 'border-destructive text-destructive bg-destructive/10';
       default: return '';
     }
   };
@@ -144,15 +166,31 @@ export default function LabourApplicationsPage() {
                     )}
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                    {/* In a real app, this link would go to the specific job details page */}
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/jobs?title=${encodeURIComponent(app.jobTitle || "")}`}><Eye className="mr-1 h-4 w-4" /> View Job</Link>
                     </Button>
-                    {/* Add withdraw application button if status allows */}
                     {(app.status === 'Pending' || app.status === 'Shortlisted') && (
-                        <Button variant="destructive" size="sm" onClick={() => alert('Withdraw functionality to be implemented.')} className="bg-destructive/80 hover:bg-destructive">
-                            <Info className="mr-1 h-4 w-4" /> Withdraw
-                        </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm" className="bg-destructive/80 hover:bg-destructive">
+                            <Trash2 className="mr-1 h-4 w-4" /> Withdraw
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure you want to withdraw?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action will withdraw your application for &quot;{app.jobTitle}&quot;. You can re-apply later if the job is still open.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleWithdrawApplication(app.id)} className="bg-destructive hover:bg-destructive/90">
+                              Confirm Withdraw
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                   </CardFooter>
                 </Card>
