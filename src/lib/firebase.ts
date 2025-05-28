@@ -32,13 +32,13 @@ export const auth = {
   // Mock auth functions for UI development
   onAuthStateChanged: (callback: (user: any) => void) => {
     // Simulate loading and then no user / a mock user
-    // setTimeout(() => callback(null), 200); 
+    setTimeout(() => callback(null), 200); 
     // To test with a mock user:
     // setTimeout(() => callback({ uid: 'mockUserId', email: 'mock@example.com', displayName: 'Mock User' }), 200);
     return () => {}; // Unsubscribe function
   },
   signInWithEmailAndPassword: async (email?: string, password?: string) => {
-    await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay
+    await new Promise(resolve => setTimeout(resolve, 100)); // Reduced delay
     if (email === "admin@labourlink.com" && password === "admin123") {
       return { user: { uid: 'adminUID', email: 'admin@labourlink.com', displayName: 'Admin User' } };
     }
@@ -51,7 +51,7 @@ export const auth = {
     throw new Error("Invalid credentials");
   },
   createUserWithEmailAndPassword: async (email?: string, password?: string) => {
-    await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay
+    await new Promise(resolve => setTimeout(resolve, 100)); // Reduced delay
     // Simulate successful registration
     return { user: { uid: `newUser-${Date.now()}`, email, displayName: 'New User' } };
   },
