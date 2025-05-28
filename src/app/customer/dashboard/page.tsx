@@ -364,10 +364,10 @@ export default function CustomerDashboardPage() {
                         <div className="flex w-full justify-end gap-2">
                             {app.status === 'Pending' && (
                             <>
-                                <Button size="sm" variant="outline" onClick={() => handleApplicationAction(app.id!, 'Accepted')}>
+                                <Button size="sm" variant="outline" className="mx-1" onClick={() => handleApplicationAction(app.id!, 'Accepted')}>
                                     <UserCheck className="mr-2 h-4 w-4"/> Accept
                                 </Button>
-                                <Button size="sm" variant="destructive" className="bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id!, 'Rejected_by_customer')}>
+                                <Button size="sm" variant="destructive" className="mx-1 bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id!, 'Rejected_by_customer')}>
                                     <Users className="mr-2 h-4 w-4"/> Reject
                                 </Button>
                             </>
