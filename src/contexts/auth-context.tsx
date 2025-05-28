@@ -27,34 +27,56 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (currentAuthUser: MockAuthUser) => {
-    if (!currentAuthUser) {
+    if (!currentAuthUser || !currentAuthUser.uid) {
+      console.warn("[AuthContext] fetchUserData called with invalid currentAuthUser:", currentAuthUser);
       setUserData(null);
       return;
     }
+    console.log("[AuthContext] Fetching user data for UID:", currentAuthUser.uid);
     try {
-      const userDocSnap = await db.collection("users").doc(currentAuthUser.uid).get();
-      if (userDocSnap.exists()) {
-        setUserData(userDocSnap.data() as UserProfile);
+      const userDocRef = db.collection("users").doc(currentAuthUser.uid);
+      const userDocSnap = await userDocRef.get();
+
+      console.log("[AuthContext] userDocSnap received:", userDocSnap);
+
+      if (userDocSnap && typeof userDocSnap.exists === 'function') {
+        if (userDocSnap.exists()) {
+          const fetchedData = userDocSnap.data();
+          console.log("[AuthContext] User data found:", fetchedData);
+          setUserData(fetchedData as UserProfile);
+        } else {
+          console.warn(`[AuthContext] No profile found for UID: ${currentAuthUser.uid}. User may need to complete profile or this is a new registration.`);
+          setUserData(null);
+        }
       } else {
+        console.error(`[AuthContext] CRITICAL: userDocSnap.exists is not a function or userDocSnap is falsy for UID: ${currentAuthUser.uid}.`);
+        console.error(`[AuthContext] userDocSnap value:`, JSON.stringify(userDocSnap));
+        if (userDocSnap) {
+            console.error(`[AuthContext] typeof userDocSnap.exists:`, typeof userDocSnap.exists);
+        }
         setUserData(null);
       }
     } catch (error) {
-      console.error("AuthContext: Error fetching user data from mock DB:", error);
+      console.error("[AuthContext] Error fetching user data:", error);
       setUserData(null);
     }
   };
 
   const refreshUserData = async () => {
     if (user) {
+      console.log("[AuthContext] Refreshing user data for:", user.uid);
       setLoading(true);
       await fetchUserData(user);
       setLoading(false);
+    } else {
+      console.log("[AuthContext] refreshUserData called but no user is logged in.");
     }
   };
 
   useEffect(() => {
     setLoading(true);
     const unsubscribe = auth.onAuthStateChanged(async (currentAuthUser: MockAuthUser | null) => {
+      console.log("[AuthContext] onAuthStateChanged triggered. currentAuthUser:", currentAuthUser);
       setUser(currentAuthUser);
       if (currentAuthUser) {
         await fetchUserData(currentAuthUser);
@@ -63,7 +85,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       setLoading(false);
     });
-    return () => unsubscribe();
+    return () => {
+      console.log("[AuthContext] Unsubscribing from onAuthStateChanged.");
+      unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<MockUserCredential | void> => {
@@ -71,8 +96,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const userCredential = await auth.signInWithEmailAndPassword(email, password);
       // onAuthStateChanged will handle setting user and fetching userData
+      console.log("[AuthContext] Login successful for:", email);
       return userCredential;
     } catch (error) {
+      console.error("[AuthContext] Login failed for:", email, error);
       setLoading(false);
       throw error;
     }
@@ -84,18 +111,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userCredential = await auth.createUserWithEmailAndPassword(email, password);
       const newAuthUser = userCredential.user;
       if (newAuthUser) {
+        const timestamp = new Date().toISOString();
         const newUserProfile: UserProfile = {
           uid: newAuthUser.uid,
           email: newAuthUser.email,
           name,
           role,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: timestamp,
+          updatedAt: timestamp,
           ...(role === 'labour' ? {
             availability: true,
             skills: [],
             city: '',
-            roleType: siteConfig.skills[0], // Default roleType
+            roleType: siteConfig.skills.length > 0 ? siteConfig.skills[0] : 'General Labour',
             subscription: {
               planId: 'none',
               planType: 'none',
@@ -109,30 +137,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               planType: 'free',
               validUntil: null,
               status: 'active',
-              jobPostLimit: 5, // Initial free limit for mock
+              jobPostLimit: 5, 
               jobPostCount: 0
             }
           } : {}),
         };
         await db.collection("users").doc(newAuthUser.uid).set(newUserProfile);
+        console.log("[AuthContext] Registration successful, profile created for:", email, newUserProfile);
+        setUser(newAuthUser); // Explicitly set user for immediate effect
         setUserData(newUserProfile); // Explicitly set userData here to ensure immediate update
       }
       return userCredential;
     } catch (error) {
-      setLoading(false);
+      console.error("[AuthContext] Registration failed for:", email, error);
       throw error;
     } finally {
-      setLoading(false); // Ensure loading is set to false in finally block
+      setLoading(false); 
     }
   };
 
   const logout = async () => {
+    console.log("[AuthContext] Logging out user:", user?.email);
     setLoading(true);
     try {
       await auth.signOut();
       // setUser and setUserData to null will be handled by onAuthStateChanged
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("[AuthContext] Logout error:", error);
     } finally {
       setLoading(false);
     }
