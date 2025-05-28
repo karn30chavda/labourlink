@@ -25,7 +25,7 @@ import type { Job } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { generateJobDescription as genJobDescAiFlow } from '@/ai/flows/job-description-generator';
-import { db } from "@/lib/firebase"; // Using new mock db
+import { db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 
 const jobPostFormSchema = z.object({
@@ -41,7 +41,7 @@ const jobPostFormSchema = z.object({
 type JobPostFormValues = z.infer<typeof jobPostFormSchema>;
 
 interface JobPostFormProps {
-  job?: Job; // Optional: for editing existing job
+  job?: Job;
   isEditing?: boolean;
 }
 
@@ -56,12 +56,12 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     resolver: zodResolver(jobPostFormSchema),
     defaultValues: job ? {
       title: job.title,
-      description: job.description || "", 
+      description: job.description || "",
       requiredSkill: job.requiredSkill,
       location: job.location,
       duration: job.duration,
       budget: job.budget || "",
-      descriptionKeywords: "", 
+      descriptionKeywords: "",
     } : {
       title: "",
       descriptionKeywords: "",
@@ -98,8 +98,9 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       return;
     }
     setIsLoading(true);
-    
-    const jobPayload: Omit<Job, 'id' | 'createdAt'> & { updatedAt: Date } = {
+
+    // Prepare the payload with all necessary fields for create or update
+    const jobDataPayload = {
       customerId: userData.uid,
       customerName: userData.name,
       title: data.title,
@@ -108,20 +109,25 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       location: data.location,
       duration: data.duration,
       budget: data.budget,
-      status: 'pending_approval', 
-      updatedAt: new Date(),
-      approvedByAdmin: false, // Default for new/edited jobs
+      status: 'pending_approval' as Job['status'], // Default for new/edited jobs needing approval
+      updatedAt: new Date().toISOString(), // Set new update timestamp
+      approvedByAdmin: false, // Edited jobs need re-approval
     };
 
     try {
       if (isEditing && job?.id) {
-        await db.collection("jobs").doc(job.id).update({ ...jobPayload, status: 'pending_approval', approvedByAdmin: false });
+        // For updates, we spread the existing job data first if we want to preserve fields not in jobDataPayload (like createdAt)
+        // However, our mock db's update function already does this.
+        // So we just pass the fields that are changing or need to be set.
+        // The mock DB will merge `jobDataPayload` onto the existing `mockJobsDb[job.id]`.
+        await db.collection("jobs").doc(job.id).update(jobDataPayload);
         toast({ title: "Job Updated", description: "Your job post has been updated and is pending re-approval." });
       } else {
-        await db.collection("jobs").add({ ...jobPayload, createdAt: new Date() });
+        // For new jobs, add createdAt
+        await db.collection("jobs").add({ ...jobDataPayload, createdAt: new Date().toISOString() });
         toast({ title: "Job Posted", description: "Your job post has been submitted for approval." });
       }
-      router.push("/customer/jobs"); 
+      router.push("/customer/jobs");
     } catch (error: any) {
       console.error("Job Post/Update Error:", error);
       toast({
@@ -157,7 +163,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
               )}
             />
 
-            {!isEditing && ( 
+            {!isEditing && (
              <FormField
                 control={form.control}
                 name="descriptionKeywords"
@@ -286,3 +292,5 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     </Card>
   );
 }
+
+    
