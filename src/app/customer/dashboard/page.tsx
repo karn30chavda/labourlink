@@ -10,8 +10,7 @@ import { matchLabor } from "@/ai/flows/labor-match";
 import type { Job, Labor, Application, UserProfile } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { db } from "@/lib/firebase"; // Using real Firebase
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Using MOCK Firebase
 import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle, FileText, UserCheck, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -44,7 +43,7 @@ export default function CustomerDashboardPage() {
   const [matchingError, setMatchingError] = useState<string | null>(null);
 
   const fetchCustomerData = async () => {
-    if (!userData?.uid || !db) { // Check if db is available
+    if (!userData?.uid) {
       setLoadingJobs(false);
       setLoadingApplications(false);
       return;
@@ -55,22 +54,22 @@ export default function CustomerDashboardPage() {
 
     try {
       // Fetch customer's jobs
-      const jobsQuery = query(collection(db, "jobs"), where("customerId", "==", userData.uid), orderBy("createdAt", "desc"));
-      const jobsSnapshot = await getDocs(jobsQuery);
+      const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
       const jobsData = jobsSnapshot.docs
-          .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Job))
-          .filter(job => job.status !== 'deleted');
+          .map((doc: any) => ({ id: doc.id, ...doc.data() } as Job))
+          .filter((job: Job) => job.status !== 'deleted')
+          .sort((a: Job, b: Job) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Sort by date
       setCustomerJobs(jobsData);
 
       // Fetch applications for these jobs
       if (jobsData.length > 0) {
         const customerJobIds = jobsData.map(job => job.id);
-        // Firestore doesn't directly support 'in' queries with more than 10 items easily without multiple queries.
-        // For simplicity with potentially many jobs, fetch all applications and filter client-side.
-        // For production with many applications, consider restructuring or server-side filtering.
-        const appsQuery = query(collection(db, "applications"), where("jobId", "in", customerJobIds.slice(0,30)), orderBy("dateApplied", "desc")); // Firestore 'in' limited to 30
-        const allAppsSnapshot = await getDocs(appsQuery);
-        const relevantApplications = allAppsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Application));
+        const allAppsSnapshot = await db.collection("applications").get(); // Mock: get all applications
+        const allApps = allAppsSnapshot.docs.map((doc: any) => doc.data() as Application);
+        
+        const relevantApplications = allApps
+            .filter((app: Application) => customerJobIds.includes(app.jobId))
+            .sort((a: Application, b: Application) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime());
         
         setJobApplications(relevantApplications);
       } else {
@@ -87,7 +86,7 @@ export default function CustomerDashboardPage() {
   };
 
   useEffect(() => {
-    if (userData?.uid && db) {
+    if (userData?.uid) {
         fetchCustomerData();
     }
   }, [userData?.uid, toast]);
@@ -98,16 +97,14 @@ export default function CustomerDashboardPage() {
   const newApplicationsCount = jobApplications.filter(app => app.status === 'Pending').length;
 
   const handleFindMatch = async (job: Job) => {
-    if (!db) return;
     setSelectedJobForMatch(job);
     setMatchingLoading(true);
     setMatchingError(null);
     setBestMatch(null);
 
     try {
-      const laboursQuery = query(collection(db, "users"), where("role", "==", "labour"));
-      const laboursSnapshot = await getDocs(laboursQuery);
-      const allLabourProfiles = laboursSnapshot.docs.map(docSnap => docSnap.data() as UserProfile);
+      const laboursSnapshot = await db.collection("users").where("role", "==", "labour").get();
+      const allLabourProfiles = laboursSnapshot.docs.map((doc:any) => doc.data() as UserProfile);
 
       const availableLaborsForAI: Labor[] = allLabourProfiles
         .filter(profile => profile.availability && profile.city && profile.skills) 
@@ -146,9 +143,8 @@ export default function CustomerDashboardPage() {
   };
 
   const handleDeleteJob = async (jobId: string) => {
-    if (!db) return;
     try {
-      await updateDoc(doc(db, "jobs", jobId), { status: 'deleted', updatedAt: serverTimestamp() });
+      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date().toISOString() });
       setCustomerJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
       toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
     } catch (error) {
@@ -158,9 +154,8 @@ export default function CustomerDashboardPage() {
   };
 
   const handleApplicationAction = async (appId: string, action: 'Accepted' | 'Rejected_by_customer') => {
-    if(!db) return;
     try {
-      await updateDoc(doc(db, "applications", appId), { status: action, updatedAt: serverTimestamp() });
+      await db.collection("applications").doc(appId).update({ status: action, updatedAt: new Date().toISOString() });
       setJobApplications(prevApps => prevApps.map(app => app.id === appId ? { ...app, status: action } : app));
       toast({ title: `Application ${action.replace('_by_customer', '')}`, description: `The application has been marked as ${action.toLowerCase().replace('_by_customer', '')}.` });
     } catch (error) {
@@ -171,13 +166,8 @@ export default function CustomerDashboardPage() {
   
   const formatDate = (dateValue: any) => {
     if (!dateValue) return 'N/A';
-    // Check if it's a Firestore Timestamp
-    if (dateValue.toDate && typeof dateValue.toDate === 'function') {
-      return format(dateValue.toDate(), 'PPP'); // e.g., Jul 24, 2024
-    }
-    // Check if it's already a Date object or a valid date string
     try {
-      return format(new Date(dateValue), 'PPP');
+      return format(new Date(dateValue), 'PPP'); // e.g., Jul 24, 2024
     } catch (e) {
       return 'Invalid Date';
     }
@@ -370,7 +360,7 @@ export default function CustomerDashboardPage() {
                         </CardDescription>
                       </CardHeader>
                       {app.message && <CardContent><p className="text-sm italic text-muted-foreground p-2 bg-muted/30 rounded-md border">Message: "{app.message}"</p></CardContent>}
-                      <CardFooter className="flex flex-col items-end gap-2 border-t pt-4">
+                       <CardFooter className="flex flex-col items-end gap-2 border-t pt-4">
                         <div className="flex w-full justify-end gap-2">
                             {app.status === 'Pending' && (
                             <>

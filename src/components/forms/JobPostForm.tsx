@@ -25,8 +25,7 @@ import type { Job } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { generateJobDescription as genJobDescAiFlow } from '@/ai/flows/job-description-generator';
-import { db } from "@/lib/firebase"; // Using real Firebase
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Uses MOCK Firebase
 import { useRouter } from "next/navigation";
 
 const jobPostFormSchema = z.object({
@@ -42,7 +41,7 @@ const jobPostFormSchema = z.object({
 type JobPostFormValues = z.infer<typeof jobPostFormSchema>;
 
 interface JobPostFormProps {
-  job?: Job; // Job prop is now fully typed
+  job?: Job;
   isEditing?: boolean;
 }
 
@@ -62,7 +61,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       location: job.location,
       duration: job.duration,
       budget: job.budget || "",
-      descriptionKeywords: "", // Keywords not stored with job, always empty on edit
+      descriptionKeywords: "", 
     } : {
       title: "",
       descriptionKeywords: "",
@@ -100,7 +99,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     }
     setIsLoading(true);
 
-    const jobDataPayload: Omit<Job, 'id' | 'createdAt' | 'updatedAt'> & { updatedAt?: any, createdAt?: any } = { // Omit id, allow serverTimestamp for dates
+    const jobDataPayload = { 
       customerId: userData.uid,
       customerName: userData.name || "Unknown Customer",
       title: data.title,
@@ -109,33 +108,31 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       location: data.location,
       duration: data.duration,
       budget: data.budget || "",
-      status: 'open', 
-      approvedByAdmin: true, // For live app, this should be false and go through an approval flow
+      status: 'open', // For mock, directly 'open'
+      approvedByAdmin: true, // For mock, directly 'true'
     };
     
     console.log("[JobPostForm] Submitting job. ID (if editing):", job?.id);
     console.log("[JobPostForm] Payload:", JSON.parse(JSON.stringify(jobDataPayload)));
 
-
     try {
       if (isEditing && job?.id) {
-        const jobDocRef = doc(db, "jobs", job.id);
-        await updateDoc(jobDocRef, {
+        await db.collection("jobs").doc(job.id).update({
             ...jobDataPayload,
-            updatedAt: serverTimestamp()
+            updatedAt: new Date().toISOString()
         });
         console.log("[JobPostForm] Update call completed for job ID:", job.id);
         toast({ title: "Job Updated", description: "Your job post has been updated." });
       } else {
-        await addDoc(collection(db, "jobs"), { 
+        await db.collection("jobs").add({ 
             ...jobDataPayload, 
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp() 
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString() 
         });
         toast({ title: "Job Posted", description: "Your job post is now live." });
       }
       router.push("/customer/jobs");
-      form.reset(); // Reset form after successful submission
+      form.reset(); 
     } catch (error: any) {
       console.error("Job Post/Update Error:", error);
       toast({

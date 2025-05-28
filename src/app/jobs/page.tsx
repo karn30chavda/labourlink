@@ -4,8 +4,7 @@
 import { JobCard } from "@/components/jobs/JobCard";
 import type { Application, Job, UserProfile } from "@/types";
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase"; 
-import { collection, query, where, getDocs, Timestamp, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Using MOCK Firebase
 import { PageLoader } from "@/components/ui/loader";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,31 +25,24 @@ export default function JobsPage() {
 
   useEffect(() => {
     const fetchJobsAndApplications = async () => {
-      if (!db) { // Check if db is available
-        setLoading(false);
-        console.error("Firestore instance (db) is not available.");
-        return;
-      }
       setLoading(true);
       try {
-        const jobsQuery = query(
-          collection(db, "jobs"),
-          where("status", "==", "open"),
-          where("approvedByAdmin", "==", true),
-          orderBy("createdAt", "desc") 
-        );
-        const jobsSnapshot = await getDocs(jobsQuery); 
+        const jobsSnapshot = await db.collection("jobs")
+            .where("status", "==", "open")
+            // .where("approvedByAdmin", "==", true) // For mock, approvedByAdmin is true by default
+            .get(); 
 
         const jobsData = jobsSnapshot.docs
-          .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Job));
+          .map((doc:any) => ({ id: doc.id, ...doc.data() } as Job))
+          .filter((job: Job) => job.approvedByAdmin !== false) // Ensure not explicitly false
+          .sort((a:Job, b:Job) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Sort by date
         setJobs(jobsData);
         setFilteredJobs(jobsData);
 
         if (userData?.role === 'labour' && userData.uid) {
-          const appsQuery = query(collection(db, "applications"), where("labourId", "==", userData.uid));
-          const appsSnapshot = await getDocs(appsQuery);
+          const appsSnapshot = await db.collection("applications").where("labourId", "==", userData.uid).get();
           const ids = new Set<string>();
-          appsSnapshot.docs.forEach(docSnap => {
+          appsSnapshot.docs.forEach((docSnap: any) => {
             const appData = docSnap.data() as Application;
             ids.add(appData.jobId);
           });
@@ -168,7 +160,7 @@ export default function JobsPage() {
             <JobCard 
                 key={job.id} 
                 job={job} 
-                hasApplied={appliedJobIds.has(job.id!)} // Ensure job.id is not undefined
+                hasApplied={appliedJobIds.has(job.id!)} 
                 onApplySuccess={handleApplicationSubmitted}
             />
           ))}

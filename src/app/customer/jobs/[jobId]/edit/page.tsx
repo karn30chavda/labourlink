@@ -4,28 +4,27 @@
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { JobPostForm } from "@/components/forms/JobPostForm";
-import { db } from "@/lib/firebase"; 
+import { db } from "@/lib/firebase"; // Uses MOCK Firebase
 import type { Job } from "@/types";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageLoader } from "@/components/ui/loader";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { doc, getDoc } from "firebase/firestore";
 
 export default function EditJobPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const { userData, loading: authLoading } = useAuth(); // Renamed loading to authLoading
+  const { userData, loading: authLoading } = useAuth(); 
   const [job, setJob] = useState<Job | null>(null);
-  const [loading, setLoading] = useState(true); // Page-specific loading
+  const [loading, setLoading] = useState(true); 
   const [error, setError] = useState<string | null>(null);
 
   const jobId = typeof params.jobId === 'string' ? params.jobId : null;
 
   useEffect(() => {
-    if (authLoading) return; // Wait for auth state to resolve
+    if (authLoading) return; 
 
     if (!userData) {
       toast({ title: "Authentication Error", description: "Please log in to edit jobs.", variant: "destructive" });
@@ -41,17 +40,9 @@ export default function EditJobPage() {
       return;
     }
 
-    if (!db) { // Check if db is available
-        setError("Database service not available.");
-        setLoading(false);
-        toast({ title: "Error", description: "Database service not available.", variant: "destructive" });
-        return;
-    }
-
     const fetchJob = async () => {
       try {
-        const jobDocRef = doc(db, "jobs", jobId);
-        const jobDocSnap = await getDoc(jobDocRef);
+        const jobDocSnap = await db.collection("jobs").doc(jobId).get();
 
         if (jobDocSnap.exists()) {
           const jobData = jobDocSnap.data() as Job;
@@ -88,7 +79,6 @@ export default function EditJobPage() {
   }
 
   if (!job) {
-    // This message could also appear if not authorized and redirected, before redirect completes
     return <PageLoader message="Job not found or you are not authorized." />;
   }
 

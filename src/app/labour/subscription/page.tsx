@@ -8,8 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { siteConfig } from "@/config/site";
-import { db } from "@/lib/firebase";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Using MOCK Firebase
 import { CheckCircle, CreditCard, Loader2, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { format, addMonths, addYears } from 'date-fns';
@@ -24,15 +23,15 @@ export default function LabourSubscriptionPage() {
   const plans = siteConfig.paymentPlans.labour;
 
   const handleSubscribe = async (plan: typeof plans[0]) => {
-    if (!userData?.uid || !db) {
-      toast({ title: "Error", description: "User not found or database not available.", variant: "destructive" });
+    if (!userData?.uid) {
+      toast({ title: "Error", description: "User not found. Cannot update subscription.", variant: "destructive" });
       return;
     }
     setIsLoading(true);
     setSelectedPlanId(plan.id);
 
     try {
-      // Simulate payment delay if needed for real payment gateway integration in future
+      // Simulate payment delay if needed
       // await new Promise(resolve => setTimeout(resolve, 1000)); 
 
       let validUntilDate;
@@ -42,20 +41,19 @@ export default function LabourSubscriptionPage() {
       } else if (plan.interval === "year") {
         validUntilDate = addYears(now, 1);
       } else {
-        validUntilDate = now; 
+        validUntilDate = now; // Should not happen with current plans
       }
 
       const newSubscriptionDetails = {
         planId: plan.id,
         planType: plan.interval,
         status: 'active' as 'active',
-        validUntil: validUntilDate.toISOString(), // Store as ISO string
+        validUntil: validUntilDate.toISOString(),
       };
 
-      const userDocRef = doc(db, "users", userData.uid);
-      await updateDoc(userDocRef, {
+      await db.collection("users").doc(userData.uid).update({
         subscription: newSubscriptionDetails,
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date().toISOString(),
       });
 
       await refreshUserData(); 
@@ -79,11 +77,6 @@ export default function LabourSubscriptionPage() {
   
   const getFormattedDate = (dateValue: any) => {
     if (!dateValue) return "N/A";
-    // Check if it's a Firestore Timestamp (likely if fetched directly after update)
-    if (dateValue.toDate && typeof dateValue.toDate === 'function') {
-      return format(dateValue.toDate(), 'PPP');
-    }
-    // Check if it's an ISO string (likely if loaded from UserData after refresh)
     try {
       return format(new Date(dateValue), 'PPP');
     } catch (e) {

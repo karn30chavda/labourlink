@@ -9,8 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import type { Job } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { db } from "@/lib/firebase"; 
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, Timestamp, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Using MOCK Firebase
 import { AlertCircle, Briefcase, Edit3, Eye, Loader2, PlusCircle, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -37,22 +36,18 @@ export default function CustomerJobsPage() {
 
   useEffect(() => {
     const fetchJobs = async () => {
-      if (!userData?.uid || !db) { // Check if db is available
+      if (!userData?.uid ) { 
         setLoading(false);
         return;
       }
       setLoading(true);
       try {
-        const jobsQuery = query(
-          collection(db, "jobs"), 
-          where("customerId", "==", userData.uid),
-          orderBy("createdAt", "desc") // Order by creation date, newest first
-        );
-        const jobsSnapshot = await getDocs(jobsQuery);
+        const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
         
         const jobsData = jobsSnapshot.docs
-            .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Job))
-            .filter(job => job.status !== 'deleted'); 
+            .map((doc: any) => ({ id: doc.id, ...doc.data() } as Job))
+            .filter((job: Job) => job.status !== 'deleted')
+            .sort((a: Job, b: Job) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Sort by date
         
         console.log("[CustomerJobsPage] Fetched jobs:", JSON.parse(JSON.stringify(jobsData)));
         setJobs(jobsData);
@@ -74,9 +69,8 @@ export default function CustomerJobsPage() {
   );
 
   const handleDeleteJob = async (jobId: string) => {
-    if (!db) return;
     try {
-      await updateDoc(doc(db, "jobs", jobId), { status: 'deleted', updatedAt: serverTimestamp() });
+      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date().toISOString() });
       setJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
       toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
     } catch (error) {
@@ -87,18 +81,12 @@ export default function CustomerJobsPage() {
   
   const formatDate = (dateValue: any) => {
     if (!dateValue) return 'N/A';
-    // Check if it's a Firestore Timestamp
-    if (dateValue.toDate && typeof dateValue.toDate === 'function') {
-      return format(dateValue.toDate(), 'PPP'); // e.g., Jul 24, 2024
-    }
-    // Check if it's already a Date object or a valid date string
     try {
-      return format(new Date(dateValue), 'PPP');
+      return format(new Date(dateValue), 'PPP'); 
     } catch (e) {
       return 'Invalid Date';
     }
   };
-
 
   const getStatusBadgeVariant = (status: Job['status']) => {
     switch (status) {
@@ -119,7 +107,6 @@ export default function CustomerJobsPage() {
       default: return '';
     }
   };
-
 
   return (
     <AuthGuard>

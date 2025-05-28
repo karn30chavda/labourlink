@@ -23,10 +23,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, Timestamp, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Using MOCK Firebase
 import { format } from 'date-fns';
-
 
 export default function LabourApplicationsPage() {
   const { userData } = useAuth();
@@ -36,19 +34,18 @@ export default function LabourApplicationsPage() {
 
   useEffect(() => {
     const fetchApplications = async () => {
-      if (!userData?.uid || !db) { // Check if db is available
+      if (!userData?.uid) {
         setLoading(false);
         return;
       }
       setLoading(true);
       try {
-        const appsQuery = query(
-          collection(db, "applications"), 
-          where("labourId", "==", userData.uid),
-          orderBy("dateApplied", "desc")
-        );
-        const appsSnapshot = await getDocs(appsQuery);
-        const appsData = appsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Application));
+        const appsSnapshot = await db.collection("applications")
+            .where("labourId", "==", userData.uid)
+            .get();
+        const appsData = appsSnapshot.docs
+            .map((doc: any) => ({ id: doc.id, ...doc.data() } as Application))
+            .sort((a: Application, b: Application) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime()); // Sort by date
         
         setApplications(appsData);
       } catch (error) {
@@ -65,13 +62,14 @@ export default function LabourApplicationsPage() {
   }, [userData?.uid, toast]);
 
   const handleWithdrawApplication = async (applicationId: string) => {
-    if (!db) return;
     try {
-      const appDocRef = doc(db, "applications", applicationId);
-      await updateDoc(appDocRef, { status: 'Withdrawn_by_labour', updatedAt: serverTimestamp() });
+      await db.collection("applications").doc(applicationId).update({ 
+        status: 'Withdrawn_by_labour', 
+        updatedAt: new Date().toISOString() 
+      });
       setApplications(prevApplications => 
         prevApplications.map(app => 
-          app.id === applicationId ? { ...app, status: 'Withdrawn_by_labour' } : app
+          app.id === applicationId ? { ...app, status: 'Withdrawn_by_labour', updatedAt: new Date().toISOString() } : app
         )
       );
       toast({
@@ -86,16 +84,12 @@ export default function LabourApplicationsPage() {
   
   const formatDate = (dateValue: any) => {
     if (!dateValue) return 'N/A';
-    if (dateValue.toDate && typeof dateValue.toDate === 'function') { // Firestore Timestamp
-      return format(dateValue.toDate(), 'PPP');
-    }
-    try { // Date object or valid date string
+    try {
       return format(new Date(dateValue), 'PPP');
     } catch (e) {
       return 'Invalid Date';
     }
   };
-
 
   const getStatusBadgeVariant = (status: Application['status']) => {
     switch (status) {
@@ -116,7 +110,6 @@ export default function LabourApplicationsPage() {
       default: return '';
     }
   };
-
 
   return (
     <AuthGuard>
@@ -184,7 +177,6 @@ export default function LabourApplicationsPage() {
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 border-t pt-4">
                     <Button variant="outline" size="sm" asChild>
-                      {/* This link might need to be adjusted if job detail pages are added */}
                       <Link href={`/jobs?title=${encodeURIComponent(app.jobTitle || "")}`}><Eye className="mr-1 h-4 w-4" /> View Original Job</Link>
                     </Button>
                     {(app.status === 'Pending' || app.status === 'Shortlisted') && (

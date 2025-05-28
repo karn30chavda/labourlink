@@ -5,16 +5,14 @@ import type { Application, Job, UserProfile } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { MapPin, Briefcase, Clock, DollarSign, Eye, ShieldAlert, CheckCircle, Loader2, UserCheck, MessageSquare } from "lucide-react";
+import { MapPin, Briefcase, Clock, DollarSign, Eye, ShieldAlert, CheckCircle, Loader2 } from "lucide-react"; // Removed UserCheck, MessageSquare
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth"; 
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Using MOCK Firebase
 import { useState } from "react";
-
 
 interface JobCardProps {
   job: Job;
@@ -41,28 +39,24 @@ export function JobCard({ job, hasApplied = false, onApplySuccess }: JobCardProp
        toast({title: "Subscription Required", description: "Please subscribe to a plan to apply for jobs.", variant: "destructive", action: <Button onClick={() => router.push('/labour/subscription')}>View Plans</Button> });
        return;
     }
-    if (!db) {
-        toast({title: "Error", description: "Database service not available.", variant: "destructive"});
-        return;
-    }
 
     setIsApplying(true);
     try {
-      const applicationData: Omit<Application, 'id' | 'updatedAt'> = { // id and updatedAt will be auto-managed or set by server
+      const applicationData: Omit<Application, 'id' | 'updatedAt'> = { 
         labourId: userData.uid,
         labourName: userData.name, 
         labourRoleType: userData.roleType, 
-        jobId: job.id!, // Assume job.id is always present
+        jobId: job.id!,
         jobTitle: job.title,
         customerId: job.customerId,
         customerName: job.customerName, 
         status: 'Pending',
         jobRequiredSkill: job.requiredSkill, 
         jobLocation: job.location, 
-        dateApplied: serverTimestamp() as any, // Firestore will convert this
+        dateApplied: new Date().toISOString(),
       };
       
-      await addDoc(collection(db, "applications"), applicationData);
+      await db.collection("applications").add(applicationData);
       
       toast({title: "Applied Successfully!", description: `You have applied for: ${job.title}`});
       if (onApplySuccess && job.id) {
@@ -106,7 +100,6 @@ export function JobCard({ job, hasApplied = false, onApplySuccess }: JobCardProp
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* Span needed for TooltipTrigger when child is disabled */}
                   <span tabIndex={0}>{actualButton}</span> 
                 </TooltipTrigger>
                 <TooltipContent>
@@ -123,13 +116,11 @@ export function JobCard({ job, hasApplied = false, onApplySuccess }: JobCardProp
      }
   }
 
-
   return (
     <Card className="w-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
           <CardTitle className="text-xl font-semibold text-primary group-hover:text-primary-dark transition-colors">
-            {/* In a real app, this would link to a job detail page */}
             <span className="hover:underline cursor-pointer" onClick={() => toast({title: "Info", description: `Job: ${job.title}. Full job detail page coming soon!`})}>{job.title}</span>
           </CardTitle>
           {job.status === 'open' && <Badge className="bg-green-500 text-white">Open</Badge>}

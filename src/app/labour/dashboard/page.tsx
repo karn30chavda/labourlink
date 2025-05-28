@@ -9,30 +9,30 @@ import { useAuth } from "@/hooks/use-auth";
 import { getRelevantJobNotifications } from "@/ai/flows/relevant-job-notifications";
 import type { Job, JobPosting, Application } from "@/types"; 
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase"; 
-import { collection, query, where, getDocs, Timestamp, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Using MOCK Firebase
 import Link from "next/link";
 import { AlertCircle, Briefcase, CheckCircle, Eye, FileText, Loader2, ShieldCheck, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast"; // Added useToast import
 import { format } from 'date-fns';
 
 
 export default function LabourDashboardPage() {
   const { userData } = useAuth();
+  const { toast } = useToast(); // Initialized toast
   const [relevantJobs, setRelevantJobs] = useState<JobPosting[]>([]);
   const [loadingAiJobs, setLoadingAiJobs] = useState(true);
   const [errorAiJobs, setErrorAiJobs] = useState<string | null>(null);
   const [recentApplications, setRecentApplications] = useState<Application[]>([]);
   const [loadingApplications, setLoadingApplications] = useState(true);
 
-
   const isSubscribed = userData?.subscription?.status === 'active';
 
   useEffect(() => {
-    if (userData && userData.role === 'labour' && db) { // Check for db
+    if (userData && userData.role === 'labour') { 
       // Fetch AI Suggested Jobs
       const fetchAiJobs = async () => {
-        if (!userData.skills || !userData.city) {
+        if (!userData.skills || userData.skills.length === 0 || !userData.city) {
             setErrorAiJobs("Please complete your profile (skills and city) to see job suggestions.");
             setLoadingAiJobs(false);
             setRelevantJobs([]);
@@ -47,16 +47,14 @@ export default function LabourDashboardPage() {
 
         setLoadingAiJobs(true);
         try {
-          const jobsQuery = query(
-            collection(db, "jobs"), 
-            where("status", "==", "open"),
-            where("approvedByAdmin", "==", true),
-            where("location", "==", userData.city) // Filter by user's city for relevance
-          );
-          const jobsSnapshot = await getDocs(jobsQuery);
+          const jobsSnapshot = await db.collection("jobs")
+            .where("status", "==", "open")
+            // .where("approvedByAdmin", "==", true) // For mock, this is default
+            .where("location", "==", userData.city) 
+            .get();
           
-          const allOpenJobsInCity: JobPosting[] = jobsSnapshot.docs.map(docSnap => {
-            const jobData = docSnap.data() as Job; 
+          const allOpenJobsInCity: JobPosting[] = jobsSnapshot.docs.map((doc:any) => {
+            const jobData = doc.data() as Job; 
             return {
               title: jobData.title,
               description: jobData.description,
@@ -91,15 +89,13 @@ export default function LabourDashboardPage() {
       const fetchRecentApplications = async () => {
         setLoadingApplications(true);
         try {
-          const appsQuery = query(
-            collection(db, "applications"),
-            where("labourId", "==", userData.uid),
-            orderBy("dateApplied", "desc"),
-            // limit(3) // If you only want the top 3 for the dashboard
-          );
-          const appsSnapshot = await getDocs(appsQuery);
-          const appsData = appsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data()} as Application));
-          setRecentApplications(appsData.slice(0,3)); // Take first 3 for dashboard
+          const appsSnapshot = await db.collection("applications")
+            .where("labourId", "==", userData.uid)
+            .get();
+          const appsData = appsSnapshot.docs.map((doc:any) => ({ id: doc.id, ...doc.data()} as Application))
+            .sort((a:Application,b:Application) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime())
+            .slice(0,3);
+          setRecentApplications(appsData); 
         } catch (error) {
           console.error("Error fetching recent applications:", error);
           toast({ title: "Error", description: "Could not fetch recent applications.", variant: "destructive" });
@@ -112,7 +108,7 @@ export default function LabourDashboardPage() {
     } else if (userData && (userData.role !== 'labour')) {
         setLoadingAiJobs(false);
         setLoadingApplications(false);
-    } else if (userData && userData.role === 'labour' && (!userData.skills || !userData.city)) {
+    } else if (userData && userData.role === 'labour' && (!userData.skills || userData.skills.length === 0 || !userData.city)) {
         setErrorAiJobs("Please complete your profile (skills and city) to see job suggestions.");
         setLoadingAiJobs(false);
         setRelevantJobs([]);
@@ -121,16 +117,11 @@ export default function LabourDashboardPage() {
         setLoadingAiJobs(false);
         setRelevantJobs([]);
     }
-
-
-  }, [userData, isSubscribed]); // Added toast to dependency array (though it's from a hook, generally stable)
+  }, [userData, isSubscribed, toast]); 
   
   const formatDate = (dateValue: any) => {
     if (!dateValue) return 'N/A';
-    if (dateValue.toDate && typeof dateValue.toDate === 'function') { // Firestore Timestamp
-      return format(dateValue.toDate(), 'PPP');
-    }
-    try { // Date object or valid date string
+    try {
       return format(new Date(dateValue), 'PPP');
     } catch (e) {
       return 'Invalid Date';
@@ -197,7 +188,7 @@ export default function LabourDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className={`text-xl font-bold ${isSubscribed ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {isSubscribed ? 'Active' : 'Inactive'}
+                  {isSubscribed ? `Active (until ${formatDate(userData?.subscription?.validUntil)})` : 'Inactive'}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   <Link href="/labour/subscription" className="text-primary hover:underline">
@@ -291,7 +282,7 @@ export default function LabourDashboardPage() {
                       </div>
                     </div>
                   ))}
-                   {recentApplications.length > 0 && ( // Show "View All" if there are ANY recent, implying there could be more
+                   {recentApplications.length > 0 && ( 
                     <div className="text-center mt-4">
                         <Button variant="link" asChild>
                             <Link href="/labour/applications">View All Applications</Link>

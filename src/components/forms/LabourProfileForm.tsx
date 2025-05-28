@@ -26,9 +26,7 @@ import type { UserProfile } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { db, storage } from "@/lib/firebase"; 
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "@/lib/firebase"; // Uses MOCK Firebase
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UploadCloud } from "lucide-react";
 
@@ -46,7 +44,7 @@ const labourProfileFormSchema = z.object({
   currentWorkSites: z.string().optional(),
   pastWorkSites: z.string().optional(),
   profilePhotoUrl: z.string().url().optional().nullable(),
-  newProfilePhoto: z.instanceof(File).optional().nullable(),
+  newProfilePhoto: z.instanceof(File).optional().nullable(), // For file upload
 });
 
 type LabourProfileFormValues = z.infer<typeof labourProfileFormSchema>;
@@ -75,7 +73,7 @@ export function LabourProfileForm() {
 
   useEffect(() => {
     if (userData) {
-      console.log("[LabourProfileForm] useEffect triggered. Current userData:", JSON.parse(JSON.stringify(userData)));
+      console.log("[LabourProfileForm] useEffect triggered. Current userData for form reset:", JSON.parse(JSON.stringify(userData)));
       const resetValues = {
         name: userData.name || "",
         phone: userData.phone || "",
@@ -90,8 +88,9 @@ export function LabourProfileForm() {
       };
       console.log("[LabourProfileForm] Resetting form with values:", JSON.parse(JSON.stringify(resetValues)));
       form.reset(resetValues);
-      console.log("[LabourProfileForm] Attempting to set imagePreview with userData.profilePhotoUrl:", userData.profilePhotoUrl);
       setImagePreview(userData.profilePhotoUrl || null);
+      console.log("[LabourProfileForm] Attempting to set imagePreview with userData.profilePhotoUrl:", userData.profilePhotoUrl);
+
     } else {
       console.log("[LabourProfileForm] useEffect triggered but userData is null/undefined. Resetting form to defaults.");
       form.reset({ name: "", phone: "", roleType: "", skills: [], city: "", availability: false, currentWorkSites: "", pastWorkSites: "", profilePhotoUrl: null, newProfilePhoto: null });
@@ -110,7 +109,7 @@ export function LabourProfileForm() {
       reader.readAsDataURL(file);
     } else {
       form.setValue("newProfilePhoto", null);
-      setImagePreview(form.getValues("profilePhotoUrl"));
+      setImagePreview(form.getValues("profilePhotoUrl")); // Revert to original URL if file cleared
     }
   };
 
@@ -125,15 +124,15 @@ export function LabourProfileForm() {
 
     let uploadedPhotoUrl = data.profilePhotoUrl; 
 
-    if (data.newProfilePhoto && storage) { // Check if storage is available
+    if (data.newProfilePhoto) { 
         try {
-            const fileRef = storageRef(storage, `profilePictures/${userData.uid}/${data.newProfilePhoto.name}`);
-            const snapshot = await uploadBytes(fileRef, data.newProfilePhoto as File);
-            uploadedPhotoUrl = await getDownloadURL(snapshot.ref);
-            toast({ title: "Profile Picture Updated", description: "New picture uploaded." });
+            // Simulate upload for mock, use actual storage.ref() for real Firebase
+            const mockUploadResponse = await storage.ref(storage, `profilePictures/${userData.uid}/${data.newProfilePhoto.name}`).put(data.newProfilePhoto);
+            uploadedPhotoUrl = await mockUploadResponse.snapshot.ref.getDownloadURL();
+            toast({ title: "Profile Picture Updated (Mock)", description: "New picture placeholder URL generated." });
         } catch (error) {
-            console.error("Real image upload error:", error);
-            toast({ title: "Image Upload Failed", description: "Could not upload image.", variant: "destructive" });
+            console.error("Mock image upload error:", error);
+            toast({ title: "Image Upload Failed (Mock)", description: "Could not simulate image upload.", variant: "destructive" });
             setIsLoading(false);
             return;
         }
@@ -149,23 +148,18 @@ export function LabourProfileForm() {
       currentWorkSites: data.currentWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
       pastWorkSites: data.pastWorkSites?.split(",").map(s => s.trim()).filter(s => s) || [],
       profilePhotoUrl: uploadedPhotoUrl,
-      updatedAt: serverTimestamp() as any,
+      updatedAt: new Date().toISOString(),
     };
     
     console.log("[LabourProfileForm] profileDataToUpdate payload:", JSON.parse(JSON.stringify(profileDataToUpdate)));
 
     try {
-      if (db) { // Check if db is available
-        const userDocRef = doc(db, "users", userData.uid);
-        await updateDoc(userDocRef, profileDataToUpdate);
+        await db.collection("users").doc(userData.uid).update(profileDataToUpdate);
         await refreshUserData(); 
         toast({
           title: "Profile Updated",
           description: "Your profile information has been successfully updated.",
         });
-      } else {
-        throw new Error("Database service is not available.");
-      }
     } catch (error: any) {
       console.error("Profile Update Error:", error);
       toast({
@@ -199,7 +193,7 @@ export function LabourProfileForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="flex flex-col items-center space-y-4">
               <Avatar className="h-32 w-32 border-4 border-primary shadow-lg">
-                <AvatarImage src={imagePreview || undefined} alt={userData?.name || "User Profile"} data-ai-hint="profile preview" />
+                <AvatarImage src={imagePreview || undefined} alt={form.getValues("name") || "User Profile"} data-ai-hint="profile preview" />
                 <AvatarFallback className="text-3xl">
                   {getInitials(form.getValues("name") || userData?.name)}
                 </AvatarFallback>

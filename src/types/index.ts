@@ -1,5 +1,6 @@
 
-import type { Timestamp } from "firebase/firestore";
+
+// Removed Firebase Timestamp import
 
 export interface UserProfile {
   uid: string;
@@ -20,14 +21,14 @@ export interface UserProfile {
   subscription?: {
     planId: string; 
     planType: string; 
-    validUntil: Timestamp | string | null; // Can be Firestore Timestamp or ISO string
+    validUntil: string | null; // Changed from Timestamp | string
     razorpayPaymentId?: string; 
     status: 'active' | 'inactive' | 'expired' | 'none';
     jobPostLimit?: number; 
     jobPostCount?: number; 
   };
-  createdAt: Timestamp | string; // Can be Firestore Timestamp or ISO string
-  updatedAt?: Timestamp | string; // Can be Firestore Timestamp or ISO string
+  createdAt: string; // Changed from Timestamp | string
+  updatedAt?: string; // Changed from Timestamp | string
 }
 
 export interface Job {
@@ -41,8 +42,8 @@ export interface Job {
   duration: string; 
   budget?: string; 
   status: 'pending_approval' | 'open' | 'assigned' | 'in_progress' | 'completed' | 'cancelled_by_customer' | 'expired' | 'deleted';
-  createdAt: Timestamp | string; // Can be Firestore Timestamp or ISO string
-  updatedAt?: Timestamp | string; // Can be Firestore Timestamp or ISO string
+  createdAt: string; // Changed from Timestamp | string
+  updatedAt?: string; // Changed from Timestamp | string
   approvedByAdmin?: boolean;
   assignedLabourId?: string; 
 }
@@ -57,12 +58,12 @@ export interface Application {
   customerId?: string; 
   customerName?: string;
   message?: string; 
-  dateApplied: Timestamp | string; // Can be Firestore Timestamp or ISO string
+  dateApplied: string; // Changed from Timestamp | string
   status: 'Pending' | 'Shortlisted' | 'Accepted' | 'Rejected_by_customer' | 'Withdrawn_by_labour';
   proposedRate?: string; 
   jobRequiredSkill?: string;
   jobLocation?: string;
-  updatedAt?: Timestamp | string; 
+  updatedAt?: string; // Changed from Timestamp | string
 }
 
 export interface Payment {
@@ -77,7 +78,7 @@ export interface Payment {
   amount: number;
   currency: 'INR';
   status: 'created' | 'authorized' | 'captured' | 'refunded' | 'failed';
-  createdAt: Timestamp | string; // Can be Firestore Timestamp or ISO string
+  createdAt: string; // Changed from Timestamp | string
 }
 
 export type UserRole = 'labour' | 'customer' | 'admin';
@@ -98,13 +99,13 @@ export interface JobPosting { // This seems to be for the AI flow, keep as is
   location: string;
 }
 
-// Mock Auth Types - Keep as is for mock environment if needed alongside real Firebase
+// Mock Auth Types
 export interface MockAuthUser {
   uid: string;
   email: string | null;
-  displayName?: string | null;
+  displayName?: string | null; // Kept for consistency with FirebaseUser if needed elsewhere
 }
 
-export interface MockUserCredential {
+export interface MockUserCredential { // This might not be strictly needed if only user is passed
   user: MockAuthUser;
 }
