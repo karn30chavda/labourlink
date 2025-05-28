@@ -42,6 +42,8 @@ export default function CustomerJobsPage() {
             .map(doc => ({ id: doc.id, ...doc.data() } as Job))
             .filter(job => job.status !== 'deleted') // Ensure soft-deleted jobs are not shown
             .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
+        
+        console.log("[CustomerJobsPage] Fetched jobs:", JSON.parse(JSON.stringify(jobsData)));
         setJobs(jobsData);
       } catch (error) {
         console.error("Error fetching jobs:", error);
@@ -53,7 +55,7 @@ export default function CustomerJobsPage() {
     if (userData?.uid) {
         fetchJobs();
     }
-  }, [userData?.uid, toast]);
+  }, [userData?.uid, toast]); // Removed router.asPath as it's not ideal for mock and not the root cause
 
   const filteredJobs = jobs.filter(job =>
     job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -62,7 +64,8 @@ export default function CustomerJobsPage() {
 
   const handleDeleteJob = async (jobId: string) => {
     try {
-      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date() });
+      // For mock db, update will mark as deleted. For real Firestore, you might use a specific "delete" function or update status.
+      await db.collection("jobs").doc(jobId).update({ status: 'deleted', updatedAt: new Date().toISOString() });
       setJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
       toast({ title: "Job Deleted", description: "The job post has been successfully deleted." });
     } catch (error) {
@@ -145,6 +148,9 @@ export default function CustomerJobsPage() {
                       Skill: {job.requiredSkill} | Location: {job.location}
                       <br />
                       Posted: {new Date(job.createdAt as string).toLocaleDateString()}
+                      {job.updatedAt && job.updatedAt !== job.createdAt && (
+                        <> | Updated: {new Date(job.updatedAt as string).toLocaleDateString()}</>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex-grow">
@@ -185,3 +191,5 @@ export default function CustomerJobsPage() {
     </AuthGuard>
   );
 }
+
+    

@@ -99,32 +99,32 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     }
     setIsLoading(true);
 
-    // Prepare the payload with all necessary fields for create or update
     const jobDataPayload = {
       customerId: userData.uid,
-      customerName: userData.name,
+      customerName: userData.name || "Unknown Customer",
       title: data.title,
       description: data.description,
       requiredSkill: data.requiredSkill,
       location: data.location,
       duration: data.duration,
-      budget: data.budget,
-      status: 'pending_approval' as Job['status'], // Default for new/edited jobs needing approval
-      updatedAt: new Date().toISOString(), // Set new update timestamp
-      approvedByAdmin: false, // Edited jobs need re-approval
+      budget: data.budget || "",
+      status: 'pending_approval' as Job['status'], 
+      updatedAt: new Date().toISOString(), 
+      approvedByAdmin: false, 
     };
+    
+    console.log("[JobPostForm] Submitting job. ID (if editing):", job?.id);
+    console.log("[JobPostForm] Payload:", JSON.parse(JSON.stringify(jobDataPayload)));
+
 
     try {
       if (isEditing && job?.id) {
-        // For updates, we spread the existing job data first if we want to preserve fields not in jobDataPayload (like createdAt)
-        // However, our mock db's update function already does this.
-        // So we just pass the fields that are changing or need to be set.
-        // The mock DB will merge `jobDataPayload` onto the existing `mockJobsDb[job.id]`.
         await db.collection("jobs").doc(job.id).update(jobDataPayload);
+        console.log("[JobPostForm] Update call completed for job ID:", job.id);
         toast({ title: "Job Updated", description: "Your job post has been updated and is pending re-approval." });
       } else {
-        // For new jobs, add createdAt
-        await db.collection("jobs").add({ ...jobDataPayload, createdAt: new Date().toISOString() });
+        const newJobRef = await db.collection("jobs").add({ ...jobDataPayload, createdAt: new Date().toISOString() });
+        console.log("[JobPostForm] Add call completed. New job ID:", newJobRef.id);
         toast({ title: "Job Posted", description: "Your job post has been submitted for approval." });
       }
       router.push("/customer/jobs");
