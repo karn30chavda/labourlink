@@ -143,7 +143,7 @@ export default function CustomerDashboardPage() {
   const handleApplicationAction = (appId: string, action: 'Accepted' | 'Rejected_by_customer') => {
     // Mock: Update application status locally and show toast
     setJobApplications(prevApps => prevApps.map(app => app.id === appId ? { ...app, status: action } : app));
-    toast({ title: `Application ${action}`, description: `The application has been marked as ${action.toLowerCase().replace('_by_customer', '')}.` });
+    toast({ title: `Application ${action.replace('_by_customer', '')}`, description: `The application has been marked as ${action.toLowerCase().replace('_by_customer', '')}.` });
     // In a real app, you'd update Firestore:
     // await db.collection("applications").doc(appId).update({ status: action, updatedAt: new Date().toISOString() });
   };
@@ -322,19 +322,19 @@ export default function CustomerDashboardPage() {
                         </CardDescription>
                       </CardHeader>
                       {app.message && <CardContent><p className="text-sm italic text-muted-foreground p-2 bg-muted/30 rounded-md border">Message: "{app.message}"</p></CardContent>}
-                      <CardFooter className="flex justify-end gap-2 border-t pt-4">
+                      <CardFooter className="flex flex-col items-end gap-2 border-t pt-4 sm:flex-row sm:justify-end">
                         {app.status === 'Pending' && (
                            <>
                             <Button size="sm" variant="outline" onClick={() => handleApplicationAction(app.id, 'Accepted')}>
                                 <UserCheck className="mr-2 h-4 w-4"/> Accept
                             </Button>
                             <Button size="sm" variant="destructive" className="bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id, 'Rejected_by_customer')}>
-                                <Users className="mr-2 h-4 w-4"/> Reject (mock)
+                                <Users className="mr-2 h-4 w-4"/> Reject
                             </Button>
                            </>
                         )}
                         <Button size="sm" variant="ghost" onClick={() => toast({title: "Info", description: `Contacting ${app.labourName}`})}>
-                            <MessageSquare className="mr-2 h-4 w-4"/> Contact (mock)
+                            <MessageSquare className="mr-2 h-4 w-4"/> Contact
                         </Button>
                       </CardFooter>
                     </Card>
