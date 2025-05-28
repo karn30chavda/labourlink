@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 
 const mockAvailableLabors: Labor[] = [
@@ -67,7 +68,6 @@ export default function CustomerDashboardPage() {
       // Fetch applications for these jobs
       if (jobsData.length > 0) {
         const customerJobIds = jobsData.map(job => job.id);
-        // In mock, we fetch all applications and then filter. In real Firestore, you'd query more efficiently.
         const allAppsSnapshot = await db.collection("applications").get(); 
         const allApps = allAppsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
         
@@ -144,7 +144,6 @@ export default function CustomerDashboardPage() {
   const handleApplicationAction = async (appId: string, action: 'Accepted' | 'Rejected_by_customer') => {
     try {
       await db.collection("applications").doc(appId).update({ status: action, updatedAt: new Date().toISOString() });
-      // Update local state to reflect the change immediately
       setJobApplications(prevApps => prevApps.map(app => app.id === appId ? { ...app, status: action } : app));
       toast({ title: `Application ${action.replace('_by_customer', '')}`, description: `The application has been marked as ${action.toLowerCase().replace('_by_customer', '')}.` });
     } catch (error) {
@@ -316,8 +315,13 @@ export default function CustomerDashboardPage() {
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg">{app.jobTitle}</CardTitle>
-                          <Badge variant={app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : app.status === 'Rejected_by_customer' ? 'destructive' : 'outline'}
-                                 className={app.status === 'Accepted' ? 'bg-green-500 text-white' : ''}>
+                          <Badge 
+                            variant={app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : app.status === 'Rejected_by_customer' ? 'destructive' : 'outline'}
+                            className={cn(
+                              app.status === 'Accepted' ? 'bg-green-500 text-white' : '',
+                              app.status === 'Rejected_by_customer' ? 'px-3 py-0.5 mt-0.5' : ''
+                            )}
+                          >
                             {app.status.replace(/_/g, ' ')}
                           </Badge>
                         </div>
@@ -326,7 +330,7 @@ export default function CustomerDashboardPage() {
                         </CardDescription>
                       </CardHeader>
                       {app.message && <CardContent><p className="text-sm italic text-muted-foreground p-2 bg-muted/30 rounded-md border">Message: "{app.message}"</p></CardContent>}
-                      <CardFooter className="flex flex-col items-end gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+                      <CardFooter className="flex flex-col items-end gap-2 border-t pt-4">
                         {app.status === 'Pending' && (
                            <div className="flex gap-2 w-full justify-end">
                             <Button size="sm" variant="outline" onClick={() => handleApplicationAction(app.id!, 'Accepted')}>
@@ -360,3 +364,4 @@ export default function CustomerDashboardPage() {
     </AuthGuard>
   );
 }
+
