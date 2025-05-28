@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { matchLabor } from "@/ai/flows/labor-match";
-import type { Job, Labor, Application } from "@/types"; // Added Application
+import type { Job, Labor, Application } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { db } from "@/lib/firebase"; 
@@ -49,54 +49,55 @@ export default function CustomerDashboardPage() {
   const [matchingLoading, setMatchingLoading] = useState(false);
   const [matchingError, setMatchingError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!userData?.uid) return;
+  const fetchCustomerData = async () => {
+    if (!userData?.uid) return;
+    
+    setLoadingJobs(true);
+    setLoadingApplications(true);
+
+    try {
+      // Fetch customer's jobs
+      const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
+      const jobsData = jobsSnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Job))
+          .filter(job => job.status !== 'deleted') 
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setCustomerJobs(jobsData);
       
-      setLoadingJobs(true);
-      setLoadingApplications(true);
-
-      try {
-        // Fetch customer's jobs
-        const jobsSnapshot = await db.collection("jobs").where("customerId", "==", userData.uid).get();
-        const jobsData = jobsSnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as Job))
-            .filter(job => job.status !== 'deleted') 
-            .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
-        setCustomerJobs(jobsData);
+      // Fetch applications for these jobs
+      if (jobsData.length > 0) {
+        const customerJobIds = jobsData.map(job => job.id);
+        // In mock, we fetch all applications and then filter. In real Firestore, you'd query more efficiently.
+        const allAppsSnapshot = await db.collection("applications").get(); 
+        const allApps = allAppsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
         
-        // Fetch applications for these jobs
-        if (jobsData.length > 0) {
-          const customerJobIds = jobsData.map(job => job.id);
-          const allAppsSnapshot = await db.collection("applications").get(); // Mock: get all applications
-          const allApps = allAppsSnapshot.docs.map(doc => doc.data() as Application);
-          
-          const relevantApplications = allApps
-            .filter(app => customerJobIds.includes(app.jobId))
-            .sort((a, b) => new Date(b.dateApplied as string).getTime() - new Date(a.dateApplied as string).getTime());
-          setJobApplications(relevantApplications);
-        } else {
-          setJobApplications([]);
-        }
-
-      } catch (error) {
-        console.error("Error fetching customer data:", error);
-        toast({ title: "Error", description: "Could not fetch your dashboard data.", variant: "destructive" });
-      } finally {
-        setLoadingJobs(false);
-        setLoadingApplications(false);
+        const relevantApplications = allApps
+          .filter(app => customerJobIds.includes(app.jobId))
+          .sort((a, b) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime());
+        setJobApplications(relevantApplications);
+      } else {
+        setJobApplications([]);
       }
-    };
 
+    } catch (error) {
+      console.error("Error fetching customer data:", error);
+      toast({ title: "Error", description: "Could not fetch your dashboard data.", variant: "destructive" });
+    } finally {
+      setLoadingJobs(false);
+      setLoadingApplications(false);
+    }
+  };
+
+  useEffect(() => {
     if (userData?.uid) {
-        fetchData();
+        fetchCustomerData();
     }
   }, [userData?.uid, toast]);
 
 
   const openJobsCount = customerJobs.filter(job => job.status === 'open').length;
   const pendingApprovalCount = customerJobs.filter(job => job.status === 'pending_approval').length;
-  const newApplicationsCount = jobApplications.filter(app => app.status === 'Pending').length; // Count new "Pending" applications
+  const newApplicationsCount = jobApplications.filter(app => app.status === 'Pending').length;
 
   const handleFindMatch = async (job: Job) => {
     setSelectedJobForMatch(job);
@@ -140,12 +141,16 @@ export default function CustomerDashboardPage() {
     }
   };
 
-  const handleApplicationAction = (appId: string, action: 'Accepted' | 'Rejected_by_customer') => {
-    // Mock: Update application status locally and show toast
-    setJobApplications(prevApps => prevApps.map(app => app.id === appId ? { ...app, status: action } : app));
-    toast({ title: `Application ${action.replace('_by_customer', '')}`, description: `The application has been marked as ${action.toLowerCase().replace('_by_customer', '')}.` });
-    // In a real app, you'd update Firestore:
-    // await db.collection("applications").doc(appId).update({ status: action, updatedAt: new Date().toISOString() });
+  const handleApplicationAction = async (appId: string, action: 'Accepted' | 'Rejected_by_customer') => {
+    try {
+      await db.collection("applications").doc(appId).update({ status: action, updatedAt: new Date().toISOString() });
+      // Update local state to reflect the change immediately
+      setJobApplications(prevApps => prevApps.map(app => app.id === appId ? { ...app, status: action } : app));
+      toast({ title: `Application ${action.replace('_by_customer', '')}`, description: `The application has been marked as ${action.toLowerCase().replace('_by_customer', '')}.` });
+    } catch (error) {
+        console.error("Error updating application status:", error);
+        toast({ title: "Error", description: "Could not update application status.", variant: "destructive"});
+    }
   };
 
   return (
@@ -243,7 +248,7 @@ export default function CustomerDashboardPage() {
                         {selectedJobForMatch?.id === job.id && (
                           <div className="mt-4 p-4 border-t">
                             {matchingLoading && <div className="flex items-center"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Finding best match...</div>}
-                            {matchingError && <p className="text-red-500 flex items-center"><AlertCircle className="mr-2 h-5 w-5" /> {matchingError}</p>}
+                            {matchingError && <p className="text-destructive flex items-center"><AlertCircle className="mr-2 h-5 w-5" /> {matchingError}</p>}
                             {bestMatch && (
                               <div>
                                 <h4 className="font-semibold text-md mb-1">AI Suggested Match:</h4>
@@ -294,7 +299,6 @@ export default function CustomerDashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Recent Applications Card */}
           <Card>
             <CardHeader>
               <CardTitle>Recent Applications for Your Jobs</CardTitle>
@@ -307,12 +311,12 @@ export default function CustomerDashboardPage() {
                 <p className="text-muted-foreground">No applications received for your jobs yet.</p>
               ) : (
                 <div className="space-y-4">
-                  {jobApplications.slice(0, 5).map(app => ( // Show top 5 recent applications
+                  {jobApplications.slice(0, 5).map(app => (
                     <Card key={app.id} className="hover:shadow-md transition-shadow">
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg">{app.jobTitle}</CardTitle>
-                          <Badge variant={app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : 'outline'}
+                          <Badge variant={app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : app.status === 'Rejected_by_customer' ? 'destructive' : 'outline'}
                                  className={app.status === 'Accepted' ? 'bg-green-500 text-white' : ''}>
                             {app.status.replace(/_/g, ' ')}
                           </Badge>
@@ -322,13 +326,13 @@ export default function CustomerDashboardPage() {
                         </CardDescription>
                       </CardHeader>
                       {app.message && <CardContent><p className="text-sm italic text-muted-foreground p-2 bg-muted/30 rounded-md border">Message: "{app.message}"</p></CardContent>}
-                      <CardFooter className="flex flex-col items-end gap-2 border-t pt-4">
+                      <CardFooter className="flex flex-col items-end gap-2 border-t pt-4 sm:flex-row sm:justify-end">
                         {app.status === 'Pending' && (
                            <div className="flex gap-2 w-full justify-end">
-                            <Button size="sm" variant="outline" onClick={() => handleApplicationAction(app.id, 'Accepted')}>
+                            <Button size="sm" variant="outline" onClick={() => handleApplicationAction(app.id!, 'Accepted')}>
                                 <UserCheck className="mr-2 h-4 w-4"/> Accept
                             </Button>
-                            <Button size="sm" variant="destructive" className="bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id, 'Rejected_by_customer')}>
+                            <Button size="sm" variant="destructive" className="bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id!, 'Rejected_by_customer')}>
                                 <Users className="mr-2 h-4 w-4"/> Reject
                             </Button>
                            </div>
@@ -342,7 +346,6 @@ export default function CustomerDashboardPage() {
                   {jobApplications.length > 5 && (
                      <div className="text-center mt-4">
                         <Button variant="link" asChild>
-                            {/* Link to a future "All Applications" page for customer */}
                             <Link href="#">View All Applications</Link>
                         </Button>
                     </div>

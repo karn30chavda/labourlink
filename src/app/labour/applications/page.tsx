@@ -6,10 +6,10 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import type { Application, Job } from "@/types";
+import type { Application } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Briefcase, Eye, FileText, Info, Loader2, Trash2, MapPin, User } from "lucide-react";
+import { Briefcase, Eye, FileText, Loader2, Trash2, MapPin, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -38,13 +38,9 @@ export default function LabourApplicationsPage() {
       setLoading(true);
       try {
         const appsSnapshot = await db.collection("applications").where("labourId", "==", userData.uid).get();
-        const appsData = appsSnapshot.docs.map(doc => doc.data() as Application)
-          .sort((a, b) => new Date(b.dateApplied as string).getTime() - new Date(a.dateApplied as string).getTime());
+        const appsData = appsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application))
+          .sort((a, b) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime());
         
-        // Enrich with job details - for mock, this might be redundant if Application already stores it
-        // In a real app, you might fetch full job details if needed, or store denormalized data
-        // For now, we assume Application type has enough details or JobCard handles separate job fetching for "View Job"
-
         setApplications(appsData);
       } catch (error) {
         console.error("Error fetching applications:", error);
@@ -61,7 +57,6 @@ export default function LabourApplicationsPage() {
 
   const handleWithdrawApplication = async (applicationId: string) => {
     try {
-      // In a real app, you'd update Firestore. For mock, update local state.
       await db.collection("applications").doc(applicationId).update({ status: 'Withdrawn_by_labour', updatedAt: new Date().toISOString() });
       setApplications(prevApplications => 
         prevApplications.map(app => 
@@ -92,6 +87,7 @@ export default function LabourApplicationsPage() {
     switch (status) {
       case 'Shortlisted': return 'bg-blue-500 text-white';
       case 'Accepted': return 'bg-green-500 text-white';
+      case 'Rejected_by_customer': return 'bg-destructive text-destructive-foreground';
       case 'Withdrawn_by_labour': return 'border-destructive text-destructive bg-destructive/10';
       default: return '';
     }
@@ -144,7 +140,7 @@ export default function LabourApplicationsPage() {
                       </Badge>
                     </div>
                     <CardDescription>
-                      Applied on: {new Date(app.dateApplied as string).toLocaleDateString()}
+                      Applied on: {new Date(app.dateApplied).toLocaleDateString()}
                       {app.customerName && <span className="flex items-center mt-1"><User className="mr-1.5 h-3.5 w-3.5 text-muted-foreground"/> Employer: {app.customerName}</span>}
                     </CardDescription>
                   </CardHeader>
@@ -164,7 +160,6 @@ export default function LabourApplicationsPage() {
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 border-t pt-4">
                     <Button variant="outline" size="sm" asChild>
-                      {/* This link might need enhancement if /jobs page doesn't easily filter by ID or exact title */}
                       <Link href={`/jobs?title=${encodeURIComponent(app.jobTitle || "")}`}><Eye className="mr-1 h-4 w-4" /> View Original Job</Link>
                     </Button>
                     {(app.status === 'Pending' || app.status === 'Shortlisted') && (
@@ -183,7 +178,7 @@ export default function LabourApplicationsPage() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleWithdrawApplication(app.id)} className="bg-destructive hover:bg-destructive/90">
+                            <AlertDialogAction onClick={() => handleWithdrawApplication(app.id!)} className="bg-destructive hover:bg-destructive/90">
                               Confirm Withdraw
                             </AlertDialogAction>
                           </AlertDialogFooter>
