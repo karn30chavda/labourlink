@@ -37,7 +37,7 @@ export default function LoginPage() {
       <div className="grid md:grid-cols-2 gap-8 items-center max-w-4xl w-full">
         <div className="hidden md:flex justify-center">
            <Image
-            src="https://placehold.co/400x500.png"
+            src="https://images.unsplash.com/photo-1601074231509-dce351c05199?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHx1bmRlciUyMGNvbnN0cnVjdGlvbnxlbnwwfHx8fDE3NDg0MjcyODl8MA&ixlib=rb-4.1.0&q=80&w=1080"
             alt="Login illustration"
             width={400}
             height={500}
