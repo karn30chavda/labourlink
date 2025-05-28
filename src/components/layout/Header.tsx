@@ -138,22 +138,13 @@ export function Header() {
               </DropdownMenu>
             ) : (
               <>
-                <Button variant="ghost" asChild className="hidden sm:inline-flex">
-                  <Link href="/login">
-                    <LogIn className="mr-2 h-4 w-4" /> Login
-                  </Link>
-                </Button>
                 <Button asChild className="hidden sm:inline-flex">
-                  <Link href="/register">
-                    <UserPlus className="mr-2 h-4 w-4" /> Register
+                  <Link href="/login">
+                    <LogIn className="mr-2 h-4 w-4" /> Login / Sign Up
                   </Link>
                 </Button>
-                 {/* Simplified for very small screens if needed, or rely on mobile menu */}
                 <Button variant="ghost" size="icon" asChild className="sm:hidden">
                   <Link href="/login"><LogIn className="h-5 w-5" /></Link>
-                </Button>
-                <Button asChild size="icon" className="sm:hidden">
-                  <Link href="/register"><UserPlus className="h-5 w-5" /></Link>
                 </Button>
               </>
             )}
@@ -197,7 +188,7 @@ export function Header() {
                   </Link>
                 ))}
                 <div className="my-2 border-t border-border/60"></div>
-                 <button 
+                 <button
                   onClick={() => { logout(); setIsMobileMenuOpen(false); }}
                   className="flex items-center w-full text-left rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
                 >
@@ -215,15 +206,7 @@ export function Header() {
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <LogIn className="mr-2 h-4 w-4" />
-                  Login
-                </Link>
-                <Link
-                  href="/register"
-                  className="flex items-center rounded-md px-3 py-2 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  Register
+                  Login / Sign Up
                 </Link>
               </>
             )}

@@ -27,16 +27,15 @@ console.log("NEXT_PUBLIC_FIREBASE_APP_ID:", appIdFromEnv);
 console.log("--- End of Firebase Environment Variable Check ---");
 // --- END DIAGNOSTIC LOGS ---
 
-const firebaseConfig = {
-  apiKey: apiKeyFromEnv,
-  authDomain: authDomainFromEnv,
-  projectId: projectIdFromEnv,
-  storageBucket: storageBucketFromEnv,
-  messagingSenderId: messagingSenderIdFromEnv,
-  appId: appIdFromEnv,
-  // measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // Optional
-};
 
+const firebaseConfig = {
+  apiKey: "AIzaSyAxvtZdnBU5inuNBOtw3_8j0ywQoLw11G0",
+  authDomain: "labourlink-3aelc.firebaseapp.com",
+  projectId: "labourlink-3aelc",
+  storageBucket: "labourlink-3aelc.firebasestorage.app",
+  messagingSenderId: "476102096775",
+  appId: "1:476102096775:web:8a53a4f2a4f7e3d7d40522"
+};
 // Conditional initialization to prevent re-initialization errors and provide clear feedback
 let app;
 let db;
