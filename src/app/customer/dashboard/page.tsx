@@ -318,9 +318,10 @@ export default function CustomerDashboardPage() {
                           <Badge 
                             variant={app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : app.status === 'Rejected_by_customer' ? 'destructive' : 'outline'}
                             className={cn(
-                              'whitespace-nowrap',
+                              'whitespace-nowrap text-center',
                               app.status === 'Accepted' ? 'bg-green-500 text-white' : '',
-                              app.status === 'Rejected_by_customer' ? 'px-3 py-0.5 mt-0.5 text-center' : ''
+                              app.status === 'Rejected_by_customer' ? 'px-3 py-0.5 mt-0.5' : '',
+                              app.status === 'Pending' ? 'text-center' : ''
                             )}
                           >
                             {app.status.replace(/_/g, ' ')}
@@ -332,16 +333,18 @@ export default function CustomerDashboardPage() {
                       </CardHeader>
                       {app.message && <CardContent><p className="text-sm italic text-muted-foreground p-2 bg-muted/30 rounded-md border">Message: "{app.message}"</p></CardContent>}
                       <CardFooter className="flex flex-col items-end gap-2 border-t pt-4">
-                        {app.status === 'Pending' && (
-                           <div className="flex gap-2 w-full justify-end">
-                            <Button size="sm" variant="outline" onClick={() => handleApplicationAction(app.id!, 'Accepted')}>
-                                <UserCheck className="mr-2 h-4 w-4"/> Accept
-                            </Button>
-                            <Button size="sm" variant="destructive" className="bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id!, 'Rejected_by_customer')}>
-                                <Users className="mr-2 h-4 w-4"/> Reject
-                            </Button>
-                           </div>
-                        )}
+                        <div className="flex w-full justify-end gap-2">
+                            {app.status === 'Pending' && (
+                            <>
+                                <Button size="sm" variant="outline" onClick={() => handleApplicationAction(app.id!, 'Accepted')}>
+                                    <UserCheck className="mr-2 h-4 w-4"/> Accept
+                                </Button>
+                                <Button size="sm" variant="destructive" className="bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id!, 'Rejected_by_customer')}>
+                                    <Users className="mr-2 h-4 w-4"/> Reject
+                                </Button>
+                            </>
+                            )}
+                        </div>
                         <Button size="sm" variant="ghost" className="w-full justify-end sm:w-auto" onClick={() => toast({title: "Info", description: `Contacting ${app.labourName}`})}>
                             <MessageSquare className="mr-2 h-4 w-4"/> Contact
                         </Button>
@@ -366,3 +369,5 @@ export default function CustomerDashboardPage() {
   );
 }
 
+
+      
