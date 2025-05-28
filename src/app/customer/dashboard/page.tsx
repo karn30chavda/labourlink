@@ -322,18 +322,18 @@ export default function CustomerDashboardPage() {
                         </CardDescription>
                       </CardHeader>
                       {app.message && <CardContent><p className="text-sm italic text-muted-foreground p-2 bg-muted/30 rounded-md border">Message: "{app.message}"</p></CardContent>}
-                      <CardFooter className="flex flex-col items-end gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+                      <CardFooter className="flex flex-col items-end gap-2 border-t pt-4">
                         {app.status === 'Pending' && (
-                           <>
+                           <div className="flex gap-2 w-full justify-end">
                             <Button size="sm" variant="outline" onClick={() => handleApplicationAction(app.id, 'Accepted')}>
                                 <UserCheck className="mr-2 h-4 w-4"/> Accept
                             </Button>
                             <Button size="sm" variant="destructive" className="bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id, 'Rejected_by_customer')}>
                                 <Users className="mr-2 h-4 w-4"/> Reject
                             </Button>
-                           </>
+                           </div>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => toast({title: "Info", description: `Contacting ${app.labourName}`})}>
+                        <Button size="sm" variant="ghost" className="w-full justify-end sm:w-auto" onClick={() => toast({title: "Info", description: `Contacting ${app.labourName}`})}>
                             <MessageSquare className="mr-2 h-4 w-4"/> Contact
                         </Button>
                       </CardFooter>
