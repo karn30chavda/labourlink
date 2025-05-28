@@ -7,30 +7,33 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { getRelevantJobNotifications } from "@/ai/flows/relevant-job-notifications";
-import type { Job, JobPosting, Application } from "@/types"; 
+import type { Job, JobPosting, Application, DirectJobOffer } from "@/types"; 
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase"; // Using MOCK Firebase
+import { db } from "@/lib/firebase"; 
 import Link from "next/link";
-import { AlertCircle, Briefcase, CheckCircle, Eye, FileText, Loader2, ShieldCheck, CreditCard } from "lucide-react";
+import { AlertCircle, Briefcase, CheckCircle, Eye, FileText, Loader2, ShieldCheck, CreditCard, Gift } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast"; // Added useToast import
+import { useToast } from "@/hooks/use-toast"; 
 import { format } from 'date-fns';
 
 
 export default function LabourDashboardPage() {
   const { userData } = useAuth();
-  const { toast } = useToast(); // Initialized toast
+  const { toast } = useToast(); 
   const [relevantJobs, setRelevantJobs] = useState<JobPosting[]>([]);
   const [loadingAiJobs, setLoadingAiJobs] = useState(true);
   const [errorAiJobs, setErrorAiJobs] = useState<string | null>(null);
   const [recentApplications, setRecentApplications] = useState<Application[]>([]);
   const [loadingApplications, setLoadingApplications] = useState(true);
+  const [pendingJobOffersCount, setPendingJobOffersCount] = useState(0);
+  const [loadingOffersCount, setLoadingOffersCount] = useState(true);
+
 
   const isSubscribed = userData?.subscription?.status === 'active';
 
   useEffect(() => {
-    if (userData && userData.role === 'labour') { 
-      // Fetch AI Suggested Jobs
+    if (userData && userData.role === 'labour' && userData.uid) { 
+      // Fetch AI Suggested Jobs (if subscribed and profile complete)
       const fetchAiJobs = async () => {
         if (!userData.skills || userData.skills.length === 0 || !userData.city) {
             setErrorAiJobs("Please complete your profile (skills and city) to see job suggestions.");
@@ -49,7 +52,6 @@ export default function LabourDashboardPage() {
         try {
           const jobsSnapshot = await db.collection("jobs")
             .where("status", "==", "open")
-            // .where("approvedByAdmin", "==", true) // For mock, this is default
             .where("location", "==", userData.city) 
             .get();
           
@@ -90,7 +92,7 @@ export default function LabourDashboardPage() {
         setLoadingApplications(true);
         try {
           const appsSnapshot = await db.collection("applications")
-            .where("labourId", "==", userData.uid)
+            .where("labourId", "==", userData.uid!)
             .get();
           const appsData = appsSnapshot.docs.map((doc:any) => ({ id: doc.id, ...doc.data()} as Application))
             .sort((a:Application,b:Application) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime())
@@ -104,10 +106,30 @@ export default function LabourDashboardPage() {
         }
       };
       fetchRecentApplications();
+      
+      // Fetch Pending Direct Job Offers Count
+      const fetchPendingOffersCount = async () => {
+        setLoadingOffersCount(true);
+        try {
+            const offersSnapshot = await db.collection("directJobOffers")
+                .where("labourId", "==", userData.uid!)
+                .where("offerStatus", "==", "pending_labour_response")
+                .get();
+            setPendingJobOffersCount(offersSnapshot.docs.length);
+        } catch (error) {
+            console.error("Error fetching pending job offers count:", error);
+            // Don't toast for this, it's just a count for the dashboard
+        } finally {
+            setLoadingOffersCount(false);
+        }
+      };
+      fetchPendingOffersCount();
+
 
     } else if (userData && (userData.role !== 'labour')) {
         setLoadingAiJobs(false);
         setLoadingApplications(false);
+        setLoadingOffersCount(false);
     } else if (userData && userData.role === 'labour' && (!userData.skills || userData.skills.length === 0 || !userData.city)) {
         setErrorAiJobs("Please complete your profile (skills and city) to see job suggestions.");
         setLoadingAiJobs(false);
@@ -142,7 +164,19 @@ export default function LabourDashboardPage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+             <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending Job Offers</CardTitle>
+                <Gift className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{loadingOffersCount ? <Loader2 className="h-6 w-6 animate-spin" /> : pendingJobOffersCount}</div>
+                <p className="text-xs text-muted-foreground">
+                  <Link href="/labour/job-offers" className="text-primary hover:underline">View offers</Link>
+                </p>
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Applications</CardTitle>
@@ -151,11 +185,11 @@ export default function LabourDashboardPage() {
               <CardContent>
                 <div className="text-2xl font-bold">{loadingApplications ? <Loader2 className="h-6 w-6 animate-spin" /> : recentApplications.filter(app => app.status === 'Pending' || app.status === 'Shortlisted').length}</div>
                 <p className="text-xs text-muted-foreground">
-                  Jobs you&apos;ve applied to
+                  <Link href="/labour/applications" className="text-primary hover:underline">Manage applications</Link>
                 </p>
               </CardContent>
             </Card>
-            <Card>
+             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Availability Status</CardTitle>
                 {userData?.availability ? <CheckCircle className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-red-500" />}
@@ -166,18 +200,6 @@ export default function LabourDashboardPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   <Link href="/labour/profile" className="text-primary hover:underline">Update your status</Link>
-                </p>
-              </CardContent>
-            </Card>
-             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Profile Completion</CardTitle>
-                <Briefcase className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{(userData?.skills && userData.skills.length > 0 && userData.city) ? '100%' : '70%'}</div>
-                 <p className="text-xs text-muted-foreground">
-                  <Link href="/labour/profile" className="text-primary hover:underline">Complete your profile</Link> for better matches.
                 </p>
               </CardContent>
             </Card>

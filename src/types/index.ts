@@ -1,5 +1,4 @@
 
-
 // Removed Firebase Timestamp import
 
 export interface UserProfile {
@@ -41,7 +40,7 @@ export interface Job {
   location: string; 
   duration: string; 
   budget?: string; 
-  status: 'pending_approval' | 'open' | 'assigned' | 'in_progress' | 'completed' | 'cancelled_by_customer' | 'expired' | 'deleted';
+  status: 'pending_approval' | 'open' | 'assigned' | 'in_progress' | 'completed' | 'cancelled_by_customer' | 'expired' | 'deleted' | 'offer_sent';
   createdAt: string; // Changed from Timestamp | string
   updatedAt?: string; // Changed from Timestamp | string
   approvedByAdmin?: boolean;
@@ -66,6 +65,24 @@ export interface Application {
   updatedAt?: string; // Changed from Timestamp | string
 }
 
+export interface DirectJobOffer {
+  id: string;
+  jobId: string;
+  jobTitle: string;
+  jobDescription?: string;
+  jobRequiredSkill?: string;
+  jobLocation?: string;
+  customerId: string;
+  customerName: string;
+  labourId: string;
+  labourName: string;
+  labourRoleType?: string;
+  offerStatus: 'pending_labour_response' | 'accepted_by_labour' | 'rejected_by_labour' | 'withdrawn_by_customer' | 'expired';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+
 export interface Payment {
   id: string;
   userId: string;
@@ -84,6 +101,7 @@ export interface Payment {
 export type UserRole = 'labour' | 'customer' | 'admin';
 
 export interface Labor { // This seems to be for the AI flow, keep as is
+  uid: string; // Added uid to map back
   name: string;
   role: string;
   skills: string[];

@@ -41,6 +41,7 @@ export const siteConfig = {
     labour: [
       { title: "Dashboard", href: "/labour/dashboard" },
       { title: "My Profile", href: "/labour/profile" },
+      { title: "Job Offers", href: "/labour/job-offers"},
       { title: "My Applications", href: "/labour/applications" },
       { title: "Subscription", href: "/labour/subscription" },
     ],
@@ -48,7 +49,6 @@ export const siteConfig = {
       { title: "Dashboard", href: "/customer/dashboard" },
       { title: "Post a Job", href: "/customer/post-job" },
       { title: "My Job Posts", href: "/customer/jobs" },
-      // { title: "Subscription", href: "/customer/subscription" }, // Removed this line
     ],
     admin: [
       { title: "Dashboard", href: "/admin/dashboard" },

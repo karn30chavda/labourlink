@@ -1,16 +1,16 @@
 
 // This file provides a MOCK Firebase implementation for development.
-// It does NOT connect to a real Firebase backend.
 // Login state is persisted via localStorage.
-// Other data (users, jobs, applications) is persisted via localStorage.
+// Other data (users, jobs, applications, directJobOffers) is persisted via localStorage.
 
-import type { UserProfile, Job, Application, MockAuthUser } from "@/types";
+import type { UserProfile, Job, Application, DirectJobOffer, MockAuthUser, UserRole } from "@/types";
 import { siteConfig } from "@/config/site";
 
 // --- Storage Keys ---
 const MOCK_USERS_DB_STORAGE_KEY = 'mockUsersDb';
 const MOCK_JOBS_DB_STORAGE_KEY = 'mockJobsDb';
 const MOCK_APPLICATIONS_DB_STORAGE_KEY = 'mockApplicationsDb';
+const MOCK_DIRECT_JOB_OFFERS_DB_STORAGE_KEY = 'mockDirectJobOffersDb';
 const MOCK_CURRENT_USER_STORAGE_KEY = 'currentMockUser';
 
 
@@ -60,12 +60,9 @@ let initialMockUsersDb: Record<string, UserProfile> = {
     updatedAt: new Date().toISOString(),
   },
 };
-let initialMockJobsDb: Record<string, Job> = {
-  // Starts empty as per user request
-};
-let initialMockApplicationsDb: Record<string, Application> = {
-  // Starts empty as per user request
-};
+let initialMockJobsDb: Record<string, Job> = {};
+let initialMockApplicationsDb: Record<string, Application> = {};
+let initialMockDirectJobOffersDb: Record<string, DirectJobOffer> = {};
 
 // --- LocalStorage Helper ---
 const loadFromLocalStorage = <T>(key: string, initialData: T): T => {
@@ -91,7 +88,7 @@ const saveToLocalStorage = <T>(key: string, data: T) => {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(key, JSON.stringify(data));
-      console.log(`[MockDB Save] Saved ${key} to localStorage. Data:`, JSON.parse(JSON.stringify(data)));
+      console.log(`[MockDB Save] Saved ${key} to localStorage. Data items:`, Object.keys(data).length);
     } catch (e) {
       console.error(`[MockDB Save] Error saving ${key} to localStorage:`, e);
     }
@@ -102,10 +99,13 @@ const saveToLocalStorage = <T>(key: string, data: T) => {
 let mockUsersDb = loadFromLocalStorage(MOCK_USERS_DB_STORAGE_KEY, initialMockUsersDb);
 let mockJobsDb = loadFromLocalStorage(MOCK_JOBS_DB_STORAGE_KEY, initialMockJobsDb);
 let mockApplicationsDb = loadFromLocalStorage(MOCK_APPLICATIONS_DB_STORAGE_KEY, initialMockApplicationsDb);
+let mockDirectJobOffersDb = loadFromLocalStorage(MOCK_DIRECT_JOB_OFFERS_DB_STORAGE_KEY, initialMockDirectJobOffersDb);
+
 
 const saveMockUsersDb = () => { saveToLocalStorage(MOCK_USERS_DB_STORAGE_KEY, mockUsersDb); };
 const saveMockJobsDb = () => { saveToLocalStorage(MOCK_JOBS_DB_STORAGE_KEY, mockJobsDb); };
 const saveMockApplicationsDb = () => { saveToLocalStorage(MOCK_APPLICATIONS_DB_STORAGE_KEY, mockApplicationsDb); };
+const saveMockDirectJobOffersDb = () => { saveToLocalStorage(MOCK_DIRECT_JOB_OFFERS_DB_STORAGE_KEY, mockDirectJobOffersDb); };
 
 
 // --- Mock Authentication ---
@@ -115,25 +115,32 @@ if (typeof window !== 'undefined') {
   if (storedUser) {
     try {
       currentMockUserAuth = JSON.parse(storedUser);
-      console.log("[MockAuth] Loaded currentMockUserAuth from localStorage:", currentMockUserAuth);
     } catch (e) {
-      console.error("[MockAuth] Error parsing currentMockUserAuth from localStorage:", e);
       localStorage.removeItem(MOCK_CURRENT_USER_STORAGE_KEY);
     }
   }
 }
 
-export const auth = {
+const auth = {
   _listeners: [] as Array<(user: MockAuthUser | null) => void>,
   _notifyAuthStateChange: (user: MockAuthUser | null) => {
     auth._listeners.forEach(listener => listener(user));
   },
   onAuthStateChanged: (callback: (user: MockAuthUser | null) => void) => {
     auth._listeners.push(callback);
-    // Initial call to inform about current state
-    if (typeof window !== 'undefined') { // Ensure this runs client-side
+    // Ensure currentMockUserAuth is re-loaded from localStorage if this is the first listener
+     if (typeof window !== 'undefined') {
         const storedUser = localStorage.getItem(MOCK_CURRENT_USER_STORAGE_KEY);
-        currentMockUserAuth = storedUser ? JSON.parse(storedUser) : null;
+        if (storedUser) {
+            try {
+                currentMockUserAuth = JSON.parse(storedUser);
+            } catch (e) {
+                localStorage.removeItem(MOCK_CURRENT_USER_STORAGE_KEY);
+                currentMockUserAuth = null;
+            }
+        } else {
+            currentMockUserAuth = null;
+        }
     }
     callback(currentMockUserAuth);
 
@@ -149,10 +156,8 @@ export const auth = {
         localStorage.setItem(MOCK_CURRENT_USER_STORAGE_KEY, JSON.stringify(currentMockUserAuth));
       }
       auth._notifyAuthStateChange(currentMockUserAuth);
-      console.log("[MockAuth] signInWithEmailAndPassword successful for:", email);
       return { user: currentMockUserAuth };
     }
-    console.warn("[MockAuth] signInWithEmailAndPassword failed for:", email);
     throw new Error("Mock Auth: Invalid email or password.");
   },
   createUserWithEmailAndPassword: async (_authInstance: any, email: string, _pass: string): Promise<{ user: MockAuthUser }> => {
@@ -161,14 +166,11 @@ export const auth = {
     }
     const uid = `mockUID-${Date.now()}`;
     const newUserAuthData: MockAuthUser = { uid, email };
-    // The actual UserProfile creation happens in AuthContext and saved to mockUsersDb there
-    // For the auth part, we just set the current user
     currentMockUserAuth = newUserAuthData;
      if (typeof window !== 'undefined') {
         localStorage.setItem(MOCK_CURRENT_USER_STORAGE_KEY, JSON.stringify(currentMockUserAuth));
     }
     auth._notifyAuthStateChange(currentMockUserAuth);
-    console.log("[MockAuth] createUserWithEmailAndPassword (auth part) successful for:", email, "UID:", uid);
     return { user: newUserAuthData };
   },
   signOut: async (_authInstance: any) => {
@@ -177,13 +179,12 @@ export const auth = {
       localStorage.removeItem(MOCK_CURRENT_USER_STORAGE_KEY);
     }
     auth._notifyAuthStateChange(null);
-    console.log("[MockAuth] signOut successful.");
   },
 };
 
 
 // --- Mock Firestore Database ---
-export const db = {
+const db = {
   collection: (collectionName: string) => {
     let dbInstance: any;
     let saveDbInstance: (() => void) | null = null;
@@ -197,30 +198,30 @@ export const db = {
     } else if (collectionName === 'applications') {
       dbInstance = mockApplicationsDb;
       saveDbInstance = saveMockApplicationsDb;
-    } else {
+    } else if (collectionName === 'directJobOffers') {
+      dbInstance = mockDirectJobOffersDb;
+      saveDbInstance = saveMockDirectJobOffersDb;
+    }
+     else {
       console.warn(`[MockDB] Accessing unknown collection: ${collectionName}`);
-      dbInstance = {}; // Should not happen with type safety
+      dbInstance = {}; 
     }
 
     const createQueryInstance = (existingConditions: Array<{ field: string; operator: string; value: any }> = []) => {
-      const conditions = [...existingConditions]; // Clone to ensure current query doesn't affect others
-
       const queryInterface: {
         where: (field: string, operator: string, value: any) => typeof queryInterface;
         get: () => Promise<{ empty: boolean; docs: Array<{ id: string; data: () => any; exists: () => boolean }> }>;
       } = {
         where: (field: string, operator: string, value: any) => {
-          conditions.push({ field, operator, value });
-          return queryInterface; // Return self for chaining
+          const newConditions = [...existingConditions, { field, operator, value }];
+          return createQueryInstance(newConditions); // Return a new query instance with accumulated conditions
         },
         get: async () => {
-          console.log(`[MockDB Get] Querying ${collectionName} with conditions:`, JSON.parse(JSON.stringify(conditions)));
-          let results = Object.values(dbInstance);
-          if (conditions.length > 0) {
+          let results = Object.values(dbInstance) as any[];
+          if (existingConditions.length > 0) {
             results = results.filter((doc: any) => {
-              return conditions.every(cond => {
+              return existingConditions.every(cond => {
                 if (!doc || typeof doc[cond.field] === 'undefined') {
-                    // console.warn(`[MockDB Filter] Document ID ${doc.id} in ${collectionName} missing field ${cond.field} for filtering:`, doc);
                     return false;
                 }
                 switch (cond.operator) {
@@ -228,7 +229,6 @@ export const db = {
                   case '!=': return doc[cond.field] !== cond.value;
                   case 'array-contains': return Array.isArray(doc[cond.field]) && doc[cond.field].includes(cond.value);
                   case 'in': return Array.isArray(cond.value) && cond.value.includes(doc[cond.field]);
-                  // Add more operators as needed (e.g., '>', '<', 'array-contains-any')
                   default:
                     console.warn(`[MockDB Filter] Unsupported operator: ${cond.operator}`);
                     return false;
@@ -236,12 +236,13 @@ export const db = {
               });
             });
           }
+           console.log(`[MockDB Get] Querying ${collectionName} with conditions:`, JSON.parse(JSON.stringify(existingConditions)), "Results count:", results.length);
           return {
             empty: results.length === 0,
             docs: results.map((doc: any) => ({
-              id: doc.id,
-              data: () => JSON.parse(JSON.stringify(doc)), // Return copy
-              exists: () => true, // Assuming if it's in results, it exists
+              id: doc.id, // Ensure doc.id exists
+              data: () => JSON.parse(JSON.stringify(doc)),
+              exists: () => true, 
             })),
           };
         }
@@ -249,18 +250,16 @@ export const db = {
       return queryInterface;
     };
 
-
     return {
       doc: (docId?: string) => {
-        const id = docId || `${collectionName.slice(0,3)}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const id = docId || `${collectionName.slice(0,3)}-${Date.now()}-${Object.keys(dbInstance).length + 1 + Math.random().toString(16).slice(2)}`;
         return {
           id,
           get: async () => {
             const docData = dbInstance[id];
-             console.log(`[MockDB Get Doc] Getting doc ${id} from ${collectionName}. Found:`, !!docData);
             return {
-              exists: () => !!docData,
-              data: () => docData ? JSON.parse(JSON.stringify(docData)) : undefined, // Return copy, or undefined if !docData
+              exists: () => !!docData, // This is now a function
+              data: () => docData ? JSON.parse(JSON.stringify(docData)) : undefined,
               id,
             };
           },
@@ -270,52 +269,50 @@ export const db = {
             if (!dbInstance[id].createdAt) {
               dbInstance[id].createdAt = timestamp;
             }
-            console.log(`[MockDB Set] Setting doc ${id} in ${collectionName}. New data:`, JSON.parse(JSON.stringify(dbInstance[id])));
+             console.log(`[MockDB Set] Setting doc ${id} in ${collectionName}. New data:`, JSON.parse(JSON.stringify(dbInstance[id])));
             if (saveDbInstance) saveDbInstance();
           },
           update: async (data: any) => {
             if (dbInstance[id]) {
-              console.log(`[MockDB Update] Updating doc ${id} in ${collectionName}. Current:`, JSON.parse(JSON.stringify(dbInstance[id])), "With:", JSON.parse(JSON.stringify(data)));
+              console.log(`[MockDB Update] Attempting to update doc ${id} in ${collectionName}.`);
+              console.log(`[MockDB Update] Current data for ${id}:`, JSON.parse(JSON.stringify(dbInstance[id])));
+              console.log(`[MockDB Update] Update payload for ${id}:`, JSON.parse(JSON.stringify(data)));
               dbInstance[id] = { ...dbInstance[id], ...data, updatedAt: new Date().toISOString() };
-               console.log(`[MockDB Update] Doc ${id} in ${collectionName} After:`, JSON.parse(JSON.stringify(dbInstance[id])));
+              console.log(`[MockDB Update] Doc ${id} in ${collectionName} AFTER update:`, JSON.parse(JSON.stringify(dbInstance[id])));
               if (saveDbInstance) saveDbInstance();
             } else {
               console.warn(`[MockDB Update] Document ${id} not found in ${collectionName} for update.`);
             }
           },
           delete: async () => {
-            console.log(`[MockDB Delete] Deleting doc ${id} from ${collectionName}`);
             delete dbInstance[id];
             if (saveDbInstance) saveDbInstance();
           }
         };
       },
       add: async (data: any) => {
-        const id = `${collectionName.slice(0,3)}-${Date.now()}-${Object.keys(dbInstance).length + Math.random().toString(16).slice(2)}`;
+        const id = `${collectionName.slice(0,3)}-${Date.now()}-${Object.keys(dbInstance).length + 1 + Math.random().toString(16).slice(2)}`;
         const timestamp = new Date().toISOString();
         dbInstance[id] = { ...data, id, createdAt: timestamp, updatedAt: timestamp };
         console.log(`[MockDB Add] Adding to ${collectionName} with new id ${id}. Data:`, JSON.parse(JSON.stringify(dbInstance[id])));
         if (saveDbInstance) saveDbInstance();
-        return { id };
+        return { id }; // Return an object with the id, similar to a DocumentReference
       },
-      // Start a query
       where: (field: string, operator: string, value: any) => {
         return createQueryInstance().where(field, operator, value);
       },
-      // Get all documents in the collection (no filtering)
-      get: async () => {
+      get: async () => { // get() at collection level
         return createQueryInstance().get();
       }
     };
   }
 };
 
-// Mock Firebase Storage (basic version, no actual upload/download)
-export const storage = {
+// Mock Firebase Storage
+const storage = {
   ref: (_storageInstance?: any, path?: string) => ({
     put: async (file: File) => {
       console.log(`[MockStorage Put] Simulating upload of ${file.name} to path ${path}`);
-      // Simulate some delay
       await new Promise(resolve => setTimeout(resolve, 100));
       return {
         snapshot: {
@@ -329,14 +326,17 @@ export const storage = {
         }
       };
     },
-    child: (childPath: string) => storage.ref(undefined, `${path}/${childPath}`)
+    child: (childPath: string) => storage.ref(undefined, `${path}/${childPath}`) // Basic child ref
   }),
-  getDownloadURL: async (ref: any) => ref.getDownloadURL(),
+  // These are not typically called directly on the top-level storage object in client SDK
+  // but might be needed if used elsewhere.
+  getDownloadURL: async (ref: any) => ref.getDownloadURL(), 
   uploadBytes: async (ref: any, file: File) => ref.put(file),
 };
 
-
 // No Firebase app initialization needed for pure mock
-export const app = undefined;
+const app = undefined;
 
-console.log("[Firebase Setup] Using MOCK Firebase services. Data persists in localStorage.");
+export { app, db, auth, storage };
+
+console.log("[Firebase Setup] Using MOCK Firebase services. Auth state persists in localStorage. Other data (users, jobs, applications, offers) also persists in localStorage.");

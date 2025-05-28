@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { matchLabor } from "@/ai/flows/labor-match";
-import type { Job, Labor, Application, UserProfile } from "@/types";
+import type { Job, Labor, Application, UserProfile, DirectJobOffer } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { db } from "@/lib/firebase"; // Using MOCK Firebase
-import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle, FileText, UserCheck, MessageSquare } from "lucide-react";
+import { db } from "@/lib/firebase"; 
+import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle, FileText, UserCheck, MessageSquare, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -37,10 +37,16 @@ export default function CustomerDashboardPage() {
   const [jobApplications, setJobApplications] = useState<Application[]>([]);
   const [loadingApplications, setLoadingApplications] = useState(true);
 
+  const [allLabourProfiles, setAllLabourProfiles] = useState<UserProfile[]>([]);
+
+
   const [selectedJobForMatch, setSelectedJobForMatch] = useState<Job | null>(null);
-  const [bestMatch, setBestMatch] = useState<any | null>(null);
+  const [bestMatch, setBestMatch] = useState<any | null>(null); // Stores AI match result
+  const [bestMatchLabourProfile, setBestMatchLabourProfile] = useState<UserProfile | null>(null); // Stores full profile of matched labour
   const [matchingLoading, setMatchingLoading] = useState(false);
   const [matchingError, setMatchingError] = useState<string | null>(null);
+  const [offeringJobLoading, setOfferingJobLoading] = useState<string | null>(null); // Store job ID being offered
+
 
   const fetchCustomerData = async () => {
     if (!userData?.uid) {
@@ -58,13 +64,12 @@ export default function CustomerDashboardPage() {
       const jobsData = jobsSnapshot.docs
           .map((doc: any) => ({ id: doc.id, ...doc.data() } as Job))
           .filter((job: Job) => job.status !== 'deleted')
-          .sort((a: Job, b: Job) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Sort by date
+          .sort((a: Job, b: Job) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); 
       setCustomerJobs(jobsData);
 
-      // Fetch applications for these jobs
       if (jobsData.length > 0) {
         const customerJobIds = jobsData.map(job => job.id);
-        const allAppsSnapshot = await db.collection("applications").get(); // Mock: get all applications
+        const allAppsSnapshot = await db.collection("applications").get(); 
         const allApps = allAppsSnapshot.docs.map((doc: any) => doc.data() as Application);
         
         const relevantApplications = allApps
@@ -75,6 +80,11 @@ export default function CustomerDashboardPage() {
       } else {
         setJobApplications([]);
       }
+      // Fetch all labour profiles once for AI matching and offering jobs
+      const laboursSnapshot = await db.collection("users").where("role", "==", "labour").get();
+      const fetchedLabourProfiles = laboursSnapshot.docs.map((doc: any) => doc.data() as UserProfile);
+      setAllLabourProfiles(fetchedLabourProfiles);
+
 
     } catch (error) {
       console.error("Error fetching customer data:", error);
@@ -89,7 +99,8 @@ export default function CustomerDashboardPage() {
     if (userData?.uid) {
         fetchCustomerData();
     }
-  }, [userData?.uid, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userData?.uid]); // Removed toast from dependencies as it can cause re-fetches
 
 
   const openJobsCount = customerJobs.filter(job => job.status === 'open').length;
@@ -101,14 +112,13 @@ export default function CustomerDashboardPage() {
     setMatchingLoading(true);
     setMatchingError(null);
     setBestMatch(null);
+    setBestMatchLabourProfile(null);
 
     try {
-      const laboursSnapshot = await db.collection("users").where("role", "==", "labour").get();
-      const allLabourProfiles = laboursSnapshot.docs.map((doc:any) => doc.data() as UserProfile);
-
       const availableLaborsForAI: Labor[] = allLabourProfiles
-        .filter(profile => profile.availability && profile.city && profile.skills) 
+        .filter(profile => profile.availability && profile.city && profile.skills && profile.uid) 
         .map(profile => ({
+          uid: profile.uid!, // Include uid
           name: profile.name,
           role: profile.roleType || "Skilled Labour", 
           skills: profile.skills || [],
@@ -133,7 +143,17 @@ export default function CustomerDashboardPage() {
         jobPost: jobPostDescription,
         availableLabors: relevantLabors,
       });
+      
       setBestMatch(result.bestMatch);
+      // Find the full profile of the matched labour to get their UID for offering job
+      const matchedProfile = allLabourProfiles.find(p => p.name === result.bestMatch.name);
+      if(matchedProfile){
+        setBestMatchLabourProfile(matchedProfile);
+      } else {
+        console.warn("Could not find full profile for AI matched labour:", result.bestMatch.name);
+        setMatchingError("AI matched a labour, but their full profile couldn't be retrieved for an offer.");
+      }
+
     } catch (error) {
       console.error("Error matching labor:", error);
       setMatchingError("Failed to find a match. Please try again.");
@@ -141,6 +161,46 @@ export default function CustomerDashboardPage() {
       setMatchingLoading(false);
     }
   };
+  
+  const handleOfferJob = async (job: Job, labourProfile: UserProfile) => {
+    if(!userData || !userData.uid || !labourProfile.uid) {
+        toast({ title: "Error", description: "Cannot send offer. User or labour details missing.", variant: "destructive"});
+        return;
+    }
+    setOfferingJobLoading(job.id);
+    try {
+        const offerData: Omit<DirectJobOffer, 'id' | 'updatedAt'> = {
+            jobId: job.id,
+            jobTitle: job.title,
+            jobDescription: job.description,
+            jobRequiredSkill: job.requiredSkill,
+            jobLocation: job.location,
+            customerId: userData.uid,
+            customerName: userData.name,
+            labourId: labourProfile.uid,
+            labourName: labourProfile.name,
+            labourRoleType: labourProfile.roleType,
+            offerStatus: 'pending_labour_response',
+            createdAt: new Date().toISOString(),
+        };
+        await db.collection("directJobOffers").add(offerData);
+        // Optionally, update the job status to 'offer_sent'
+        await db.collection("jobs").doc(job.id).update({ status: 'offer_sent', updatedAt: new Date().toISOString() });
+        setCustomerJobs(prevJobs => prevJobs.map(j => j.id === job.id ? {...j, status: 'offer_sent'} : j));
+
+        toast({title: "Job Offered!", description: `Offer sent to ${labourProfile.name} for "${job.title}".`});
+        setBestMatch(null); // Clear match details after offering
+        setBestMatchLabourProfile(null);
+        setSelectedJobForMatch(null);
+
+    } catch (error) {
+        console.error("Error offering job:", error);
+        toast({title: "Offer Failed", description: "Could not send job offer. Please try again.", variant: "destructive"});
+    } finally {
+        setOfferingJobLoading(null);
+    }
+  };
+
 
   const handleDeleteJob = async (jobId: string) => {
     try {
@@ -258,11 +318,12 @@ export default function CustomerDashboardPage() {
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg">{job.title}</CardTitle>
-                           <Badge variant={job.status === 'open' ? 'default' : job.status === 'pending_approval' ? 'secondary' : job.status === 'assigned' ? 'outline' : 'destructive'}
+                           <Badge variant={job.status === 'open' ? 'default' : job.status === 'pending_approval' ? 'secondary' : (job.status === 'assigned' || job.status === 'offer_sent') ? 'outline' : 'destructive'}
                                   className={cn(
                                     'whitespace-nowrap',
                                     job.status === 'open' ? 'bg-green-500 text-white' : '',
                                     job.status === 'assigned' ? 'border-blue-500 text-blue-500' : '',
+                                    job.status === 'offer_sent' ? 'border-purple-500 text-purple-500' : '',
                                     job.status === 'pending_approval' ? 'bg-yellow-500 text-white text-center' : ''
                                   )}
                                 >
@@ -276,23 +337,32 @@ export default function CustomerDashboardPage() {
                           <div className="mt-4 p-4 border-t">
                             {matchingLoading && <div className="flex items-center"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Finding best match...</div>}
                             {matchingError && <p className="text-destructive flex items-center"><AlertCircle className="mr-2 h-5 w-5" /> {matchingError}</p>}
-                            {bestMatch && (
+                            {bestMatch && bestMatchLabourProfile && (
                               <div>
                                 <h4 className="font-semibold text-md mb-1">AI Suggested Match:</h4>
                                 <p><strong>Name:</strong> {bestMatch.name} ({bestMatch.role})</p>
                                 <p><strong>Skills:</strong> {bestMatch.skills.join(", ")}</p>
                                 <p><strong>City:</strong> {bestMatch.city}</p>
                                 <p><strong>Reason:</strong> {bestMatch.matchReason}</p>
-                                <Button size="sm" variant="outline" className="mt-2">Contact {bestMatch.name}</Button>
+                                <Button 
+                                    size="sm" 
+                                    variant="default" 
+                                    className="mt-2 bg-accent hover:bg-accent/90"
+                                    onClick={() => handleOfferJob(job, bestMatchLabourProfile)}
+                                    disabled={offeringJobLoading === job.id}
+                                >
+                                  {offeringJobLoading === job.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                                  Offer Job to {bestMatch.name}
+                                </Button>
                               </div>
                             )}
                           </div>
                         )}
                       </CardContent>
                       <CardFooter className="flex justify-end gap-2">
-                        {job.status === 'open' && (
+                        {(job.status === 'open' || job.status === 'offer_sent') && (
                           <Button variant="outline" size="sm" onClick={() => handleFindMatch(job)} disabled={matchingLoading && selectedJobForMatch?.id === job.id}>
-                            {matchingLoading && selectedJobForMatch?.id === job.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Search className="h-4 w-4 mr-1" />}
+                            {(matchingLoading && selectedJobForMatch?.id === job.id) || offeringJobLoading === job.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Search className="h-4 w-4 mr-1" />}
                             Find Match (AI)
                           </Button>
                         )}
