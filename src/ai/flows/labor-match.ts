@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI-powered labor matching agent.
@@ -47,4 +48,40 @@ const prompt = ai.definePrompt({
   name: 'matchLaborPrompt',
   input: {schema: MatchLaborInputSchema},
   output: {schema: MatchLaborOutputSchema},
-  prompt: `You are an expert in matching labors to job posts based on their skills and availability.\n\n  Given the following job post:\n  {{jobPost}}\n\n  And the following available labors:\n  {{#each availableLabors}}\n  - Name: {{this.name}}, Role: {{this.role}}, Skills: {{this.skills}}, Availability: {{this.availability}}, City: {{this.city}}, Past Working Sites: {{this.pastWorkingSites}}\n  {{/each}}\n\n  Determine the best labor match for the job post and explain why they are the best match. Consider the skills required for the job, the labor's skills, their availability, and their location.\n\n  Return the best match in the following format:\n  { \
+  prompt: `You are an expert in matching labors to job posts based on their skills and availability.
+
+  Given the following job post:
+  {{{jobPost}}}
+
+  And the following available labors:
+  {{#each availableLabors}}
+  - Name: {{this.name}}, Role: {{this.role}}, Skills: {{#each this.skills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, Availability: {{this.availability}}, City: {{this.city}}, Past Working Sites: {{#each this.pastWorkingSites}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+  {{/each}}
+
+  Determine the best labor match for the job post and explain why they are the best match. Consider the skills required for the job, the labor's skills, their availability, and their location.
+
+  Return the best match in the following format:
+  {
+    "bestMatch": {
+      "name": "Name of the best matching labor",
+      "role": "Role of the best matching labor",
+      "skills": ["Skill 1", "Skill 2"],
+      "availability": true,
+      "city": "City of the labor",
+      "matchReason": "Explanation why this labor is the best match."
+    }
+  }`,
+});
+
+const matchLaborFlow = ai.defineFlow(
+  {
+    name: 'matchLaborFlow',
+    inputSchema: MatchLaborInputSchema,
+    outputSchema: MatchLaborOutputSchema,
+  },
+  async input => {
+    const {output} = await prompt(input);
+    return output!;
+  }
+);
+
