@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, LogIn, LogOut, Menu, X } from "lucide-react"; // Removed Sun, Moon
+import { Building2, LogIn, LogOut, Menu, X } from "lucide-react"; 
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/hooks/use-auth";
@@ -126,7 +126,7 @@ export function Header() {
 
       {/* Mobile Menu Dropdown (conditionally rendered) */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-16 inset-x-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40 p-4 shadow-md">
+        <div className="md:hidden absolute top-16 inset-x-0 z-40 bg-background backdrop-blur supports-[backdrop-filter]:bg-background/90 border-b border-border/40 p-4 shadow-md">
           <nav className="flex flex-col space-y-1">
             {siteConfig.mainNav.map((item) => (
               <Link
@@ -138,11 +138,13 @@ export function Header() {
                 {item.title}
               </Link>
             ))}
-            {user && userData && (
+            
+            {user && ( // Show this section if user is authenticated
               <>
                 <div className="my-2 border-t border-border/60"></div>
-                 <DropdownMenuLabel className="px-3 pt-2 text-xs text-muted-foreground">Welcome, {userData.name}</DropdownMenuLabel>
-                {userNavItems.length > 0 && userNavItems.map(item => (
+                {userData && <DropdownMenuLabel className="px-3 pt-2 text-xs text-muted-foreground">Welcome, {userData.name}</DropdownMenuLabel>}
+                
+                {userData && userNavItems.length > 0 && userNavItems.map(item => (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -162,6 +164,7 @@ export function Header() {
                 </button>
               </>
             )}
+
              {!user && !loading && (
               <>
                 <div className="my-2 border-t border-border/60"></div>
