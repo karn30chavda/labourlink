@@ -318,8 +318,9 @@ export default function CustomerDashboardPage() {
                           <Badge 
                             variant={app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : app.status === 'Rejected_by_customer' ? 'destructive' : 'outline'}
                             className={cn(
+                              'whitespace-nowrap',
                               app.status === 'Accepted' ? 'bg-green-500 text-white' : '',
-                              app.status === 'Rejected_by_customer' ? 'px-3 py-0.5 mt-0.5' : ''
+                              app.status === 'Rejected_by_customer' ? 'px-3 py-0.5 mt-0.5 text-center' : ''
                             )}
                           >
                             {app.status.replace(/_/g, ' ')}
