@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import type { Application, Job } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Briefcase, Eye, FileText, Info, Loader2, Trash2 } from "lucide-react"; // Added Trash2
+import { Briefcase, Eye, FileText, Info, Loader2, Trash2, MapPin, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -23,68 +23,59 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-// Mock data for applied jobs - in a real app, this would be fetched
-const mockFetchedApplications: (Application & { jobDetails?: Partial<Job> })[] = [
-  { 
-    id: 'app1', 
-    labourId: 'labourUID', 
-    jobId: 'job1', 
-    jobTitle: 'Urgent Plumbing for New Condo', 
-    dateApplied: new Date(Date.now() - 86400000 * 2).toISOString(), 
-    status: 'Pending',
-    jobDetails: { requiredSkill: 'Plumbing', location: 'MockCity', customerName: 'ABC Builders' }
-  },
-  { 
-    id: 'app2', 
-    labourId: 'labourUID', 
-    jobId: 'job3', 
-    jobTitle: 'Electrical Rewiring Project', 
-    dateApplied: new Date(Date.now() - 86400000 * 5).toISOString(), 
-    status: 'Shortlisted',
-    jobDetails: { requiredSkill: 'Electrical', location: 'MockCity', customerName: 'Home Renovations Ltd.' }
-  },
-  {
-    id: 'app3',
-    labourId: 'labourUID',
-    jobId: 'jobNonExistent',
-    jobTitle: 'Advanced Carpentry Task',
-    dateApplied: new Date(Date.now() - 86400000 * 1).toISOString(),
-    status: 'Accepted',
-    jobDetails: { requiredSkill: 'Carpenter', location: 'AnotherCity', customerName: 'BuildIt Wright' }
-  }
-];
+import { db } from "@/lib/firebase";
 
 
 export default function LabourApplicationsPage() {
   const { userData } = useAuth();
   const { toast } = useToast();
-  const [applications, setApplications] = useState<(Application & { jobDetails?: Partial<Job> })[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (userData?.uid) {
+    const fetchApplications = async () => {
+      if (!userData?.uid) return;
       setLoading(true);
-      setTimeout(() => {
-        const userApplications = mockFetchedApplications.filter(app => app.labourId === userData.uid);
-        setApplications(userApplications);
-        setLoading(false);
-      }, 500);
-    } else {
-      setLoading(false);
-    }
-  }, [userData?.uid]);
+      try {
+        const appsSnapshot = await db.collection("applications").where("labourId", "==", userData.uid).get();
+        const appsData = appsSnapshot.docs.map(doc => doc.data() as Application)
+          .sort((a, b) => new Date(b.dateApplied as string).getTime() - new Date(a.dateApplied as string).getTime());
+        
+        // Enrich with job details - for mock, this might be redundant if Application already stores it
+        // In a real app, you might fetch full job details if needed, or store denormalized data
+        // For now, we assume Application type has enough details or JobCard handles separate job fetching for "View Job"
 
-  const handleWithdrawApplication = (applicationId: string) => {
-    setApplications(prevApplications => 
-      prevApplications.map(app => 
-        app.id === applicationId ? { ...app, status: 'Withdrawn_by_labour' } : app
-      )
-    );
-    toast({
-      title: "Application Withdrawn",
-      description: "You have successfully withdrawn your application.",
-    });
+        setApplications(appsData);
+      } catch (error) {
+        console.error("Error fetching applications:", error);
+        toast({ title: "Error", description: "Could not fetch your applications.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (userData?.uid) {
+      fetchApplications();
+    }
+  }, [userData?.uid, toast]);
+
+  const handleWithdrawApplication = async (applicationId: string) => {
+    try {
+      // In a real app, you'd update Firestore. For mock, update local state.
+      await db.collection("applications").doc(applicationId).update({ status: 'Withdrawn_by_labour', updatedAt: new Date().toISOString() });
+      setApplications(prevApplications => 
+        prevApplications.map(app => 
+          app.id === applicationId ? { ...app, status: 'Withdrawn_by_labour' } : app
+        )
+      );
+      toast({
+        title: "Application Withdrawn",
+        description: "You have successfully withdrawn your application.",
+      });
+    } catch (error) {
+       console.error("Error withdrawing application:", error);
+       toast({ title: "Error", description: "Could not withdraw application.", variant: "destructive" });
+    }
   };
 
   const getStatusBadgeVariant = (status: Application['status']) => {
@@ -154,20 +145,27 @@ export default function LabourApplicationsPage() {
                     </div>
                     <CardDescription>
                       Applied on: {new Date(app.dateApplied as string).toLocaleDateString()}
-                      {app.jobDetails?.customerName && ` | Employer: ${app.jobDetails.customerName}`}
+                      {app.customerName && <span className="flex items-center mt-1"><User className="mr-1.5 h-3.5 w-3.5 text-muted-foreground"/> Employer: {app.customerName}</span>}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      Skill: {app.jobDetails?.requiredSkill || "N/A"} | Location: {app.jobDetails?.location || "N/A"}
-                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                        <p className="text-muted-foreground flex items-center">
+                           <Briefcase className="mr-1.5 h-4 w-4 text-primary"/> Skill: {app.jobRequiredSkill || "N/A"}
+                        </p>
+                        <p className="text-muted-foreground flex items-center">
+                           <MapPin className="mr-1.5 h-4 w-4 text-primary"/> Location: {app.jobLocation || "N/A"}
+                        </p>
+                    </div>
+
                     {app.message && (
-                        <p className="text-sm mt-2 italic bg-muted/50 p-2 rounded-md">Your message: &quot;{app.message}&quot;</p>
+                        <p className="text-sm mt-3 italic bg-muted/50 p-3 rounded-md border">Your message: &quot;{app.message}&quot;</p>
                     )}
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 border-t pt-4">
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/jobs?title=${encodeURIComponent(app.jobTitle || "")}`}><Eye className="mr-1 h-4 w-4" /> View Job</Link>
+                      {/* This link might need enhancement if /jobs page doesn't easily filter by ID or exact title */}
+                      <Link href={`/jobs?title=${encodeURIComponent(app.jobTitle || "")}`}><Eye className="mr-1 h-4 w-4" /> View Original Job</Link>
                     </Button>
                     {(app.status === 'Pending' || app.status === 'Shortlisted') && (
                       <AlertDialog>
@@ -202,4 +200,3 @@ export default function LabourApplicationsPage() {
     </AuthGuard>
   );
 }
-

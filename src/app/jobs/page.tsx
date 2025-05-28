@@ -2,7 +2,7 @@
 "use client";
 
 import { JobCard } from "@/components/jobs/JobCard";
-import type { Job } from "@/types";
+import type { Application, Job, UserProfile } from "@/types";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase"; 
 import { PageLoader } from "@/components/ui/loader";
@@ -11,39 +11,53 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { siteConfig } from "@/config/site";
 import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function JobsPage() {
+  const { userData } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSkill, setSelectedSkill] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("");
+  const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const fetchJobs = async () => {
+    const fetchJobsAndApplications = async () => {
       setLoading(true);
       try {
+        // Fetch all open jobs
         const jobsSnapshot = await db.collection("jobs")
                                 .where("status", "==", "open")
-                                .get(); // In mock, 'approvedByAdmin' is harder to chain, filter client-side
+                                .get(); 
 
         const jobsData = jobsSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as Job))
-          .filter(job => job.approvedByAdmin !== false) // Assuming approvedByAdmin is true or undefined for approved
+          .filter(job => job.approvedByAdmin !== false) 
           .sort((a,b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime());
-
-
         setJobs(jobsData);
         setFilteredJobs(jobsData);
+
+        // If labour user is logged in, fetch their applications
+        if (userData?.role === 'labour' && userData.uid) {
+          const appsSnapshot = await db.collection("applications").where("labourId", "==", userData.uid).get();
+          const ids = new Set<string>();
+          appsSnapshot.docs.forEach(doc => {
+            const appData = doc.data() as Application;
+            ids.add(appData.jobId);
+          });
+          setAppliedJobIds(ids);
+        }
+
       } catch (error) {
-        console.error("Error fetching jobs:", error);
+        console.error("Error fetching jobs/applications:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchJobs();
-  }, []);
+    fetchJobsAndApplications();
+  }, [userData]);
 
   useEffect(() => {
     let tempJobs = jobs;
@@ -67,6 +81,11 @@ export default function JobsPage() {
     setSelectedSkill("");
     setSelectedLocation("");
   };
+  
+  const handleApplicationSubmitted = (jobId: string) => {
+    setAppliedJobIds(prev => new Set(prev).add(jobId));
+  };
+
 
   if (loading) {
     return <PageLoader message="Loading available jobs..." />;
@@ -139,7 +158,12 @@ export default function JobsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredJobs.map((job) => (
-            <JobCard key={job.id} job={job} />
+            <JobCard 
+                key={job.id} 
+                job={job} 
+                hasApplied={appliedJobIds.has(job.id)}
+                onApplySuccess={handleApplicationSubmitted}
+            />
           ))}
         </div>
       )}

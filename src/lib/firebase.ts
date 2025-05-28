@@ -1,6 +1,6 @@
 
 // --- MOCK AUTHENTICATION ---
-import type { UserProfile, Job, MockAuthUser, MockUserCredential, UserRole } from '@/types';
+import type { UserProfile, Job, MockAuthUser, MockUserCredential, UserRole, Application } from '@/types';
 import { siteConfig } from '@/config/site';
 
 const MOCK_AUTH_USER_STORAGE_KEY = 'mockAuthUser';
@@ -22,7 +22,6 @@ if (typeof window !== 'undefined') {
 let currentMockUser: MockAuthUser | null = initialUser;
 let authStateListener: ((user: MockAuthUser | null) => void) | null = null;
 
-// Simple in-memory store for user profiles - this still resets on refresh but auth state will persist
 const mockUsersDb: { [uid: string]: UserProfile } = {
   "adminUID": {
     uid: 'adminUID', name: 'Admin User', email: 'admin@labourlink.com', role: 'admin',
@@ -47,7 +46,7 @@ const mockUsersDb: { [uid: string]: UserProfile } = {
       planType: 'free',
       validUntil: null,
       status: 'active',
-      jobPostLimit: 1,
+      jobPostLimit: 3, // Increased for testing
       jobPostCount: 0
     }
   },
@@ -56,21 +55,19 @@ const mockUsersDb: { [uid: string]: UserProfile } = {
 const auth = {
   onAuthStateChanged: (callback: (user: MockAuthUser | null) => void): (() => void) => {
     authStateListener = callback;
-    // Simulate async behavior for initial check, now respecting localStorage
     setTimeout(() => {
       if (authStateListener) {
         authStateListener(currentMockUser);
       }
-    }, 0);
+    }, 50); // Small delay to simulate async
     return () => {
       authStateListener = null;
     };
   },
   signInWithEmailAndPassword: async (email: string, password: string): Promise<MockUserCredential> => {
-    console.log("Mock Sign In Attempt:", email);
     await new Promise(resolve => setTimeout(resolve, 50));
     for (const uid in mockUsersDb) {
-      if (mockUsersDb[uid].email === email && password === "password") { // Simple password check
+      if (mockUsersDb[uid].email === email && password === "password") { 
         currentMockUser = { uid, email, displayName: mockUsersDb[uid].name };
         if (typeof window !== 'undefined') {
           localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(currentMockUser));
@@ -82,13 +79,12 @@ const auth = {
     throw new Error("Mock Auth: Invalid credentials.");
   },
   createUserWithEmailAndPassword: async (email: string, password: string): Promise<MockUserCredential> => {
-    console.log("Mock Register Attempt:", email);
     await new Promise(resolve => setTimeout(resolve, 50));
     if (Object.values(mockUsersDb).find(u => u.email === email)) {
       throw new Error("Mock Auth: Email already in use.");
     }
     const uid = `mockUID-${Date.now()}`;
-    currentMockUser = { uid, email, displayName: '' }; // Name will be set by AuthContext
+    currentMockUser = { uid, email, displayName: '' }; 
      if (typeof window !== 'undefined') {
         localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(currentMockUser));
     }
@@ -96,7 +92,6 @@ const auth = {
     return { user: currentMockUser };
   },
   signOut: async (): Promise<void> => {
-    console.log("Mock Sign Out");
     await new Promise(resolve => setTimeout(resolve, 50));
     currentMockUser = null;
     if (typeof window !== 'undefined') {
@@ -109,54 +104,47 @@ const auth = {
   }
 };
 
-// --- MOCK FIRESTORE (USERS and JOBS) ---
-// This data will still reset on refresh, but user auth state will persist.
-// For full data persistence in mock, localStorage would be needed here too.
+// --- MOCK FIRESTORE (USERS, JOBS, APPLICATIONS) ---
 let mockJobsDb: { [id: string]: Job } = {
-  'job1': { id: 'job1', title: 'Plumbing Work (Open)', customerId: 'customerUID', customerName: 'Customer User', description: 'Fix leaky pipes and install new sink.', requiredSkill: 'Plumbing', location: 'MockCity', duration: '2 days', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 3).toISOString() },
-  'job2': { id: 'job2', title: 'Electrical Wiring for New Office', customerId: 'customerUID2', customerName: 'Tech Solutions Ltd.', description: 'Complete electrical wiring for a new office space.', requiredSkill: 'Electrical', location: 'AnotherCity', duration: '5 days', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString() },
-  'jobCust1': { id: 'jobCust1', title: 'Customer Job 1 (Open)', customerId: 'customerUID', customerName: 'Customer User', description: 'Garden wall construction needed.', requiredSkill: 'Mason', location: 'MockCity', duration: '1 week', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
-  'jobCust2': { id: 'jobCust2', title: 'Customer Job 2 (Pending)', customerId: 'customerUID', customerName: 'Customer User', description: 'Interior painting for 2 rooms.', requiredSkill: 'Painter', location: 'MockCity', duration: '3 days', status: 'pending_approval', approvedByAdmin: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  'job1': { id: 'job1', title: 'Urgent Plumbing for New Condo', customerId: 'customerUID', customerName: 'Customer User', description: 'Fix leaky pipes and install new sink in a newly constructed condominium. Requires experience with PEX and copper piping. All materials will be provided on site. Work to be completed within 2 days.', requiredSkill: 'Plumber', location: 'MockCity', duration: '2 days', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 3).toISOString(), budget: '₹5,000 - ₹8,000' },
+  'job2': { id: 'job2', title: 'Electrical Wiring for Retail Outlet', customerId: 'customerUID2', customerName: 'Fashion Forward Inc.', description: 'Complete electrical wiring, fixture installation, and panel setup for a new retail store. Must adhere to commercial electrical codes. Blueprints available.', requiredSkill: 'Electrician', location: 'AnotherCity', duration: '5 days', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(), budget: '₹15,000' },
+  'jobCust1': { id: 'jobCust1', title: 'Garden Wall Construction - Phase 1', customerId: 'customerUID', customerName: 'Customer User', description: 'Build a 20-meter long, 1.5-meter high brick garden wall. Foundation is already prepared. Masonry skills and attention to detail are key.', requiredSkill: 'Mason', location: 'MockCity', duration: '1 week', status: 'open', approvedByAdmin: true, createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString(), budget: '₹20,000 - ₹25,000' },
+  'jobCust2': { id: 'jobCust2', title: 'Interior Painting (2 Rooms)', customerId: 'customerUID', customerName: 'Customer User', description: 'Interior painting for a living room and bedroom, approximately 500 sq ft total. Walls and ceilings. Customer will provide paint.', requiredSkill: 'Painter', location: 'MockCity', duration: '3 days', status: 'open', approvedByAdmin: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), budget: 'Negotiable' },
 };
-let jobIdCounter = Object.keys(mockJobsDb).length + 1;
+let jobIdCounter = Object.keys(mockJobsDb).length + 10; // Start higher to avoid clashes if any persist in localStorage from previous mock
+
+let mockApplicationsDb: { [id: string]: Application } = {};
+let applicationIdCounter = 1;
 
 const db = {
   collection: (collectionName: string) => ({
     doc: (docId?: string) => {
-      const id = docId || `mockDoc-${Date.now()}`;
+      const id = docId || `mockDoc-${collectionName}-${Date.now()}`;
       return {
-        get: async (): Promise<{ exists: () => boolean; data: () => any; id: string }> => {
+        get: async (): Promise<{ exists: () => boolean; data: () => any; id: string } | { exists: false; data: () => null; id: string }> => {
           await new Promise(resolve => setTimeout(resolve, 50));
-          let dataStore = collectionName === 'users' ? mockUsersDb : mockJobsDb;
-          const docData = (dataStore as any)[id];
-          // If fetching users and user doesn't exist in mockUsersDb, try to add from auth if currentMockUser matches
-          if (collectionName === 'users' && !docData && currentMockUser && currentMockUser.uid === id) {
-             // This case is more for when AuthContext tries to fetch user data after rehydrating from localStorage
-             if (!mockUsersDb[id] && currentMockUser.email) { // Ensure we don't overwrite if it was populated by register
-                console.warn(`Mock DB: User ${id} not in mockUsersDb, creating a shell from auth state.`);
-                // This is a simplified shell; ideally, role and other details would also be persisted or defaulted
-                mockUsersDb[id] = {
-                    uid: id,
-                    email: currentMockUser.email,
-                    name: currentMockUser.displayName || 'User from Storage',
-                    role: 'labour', // Default role, could be more sophisticated
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                };
-                return { exists: () => true, data: () => ({...mockUsersDb[id]}), id };
-             }
-          }
+          let dataStore: any;
+          if (collectionName === 'users') dataStore = mockUsersDb;
+          else if (collectionName === 'jobs') dataStore = mockJobsDb;
+          else if (collectionName === 'applications') dataStore = mockApplicationsDb;
+          else return { exists: () => false, data: () => null, id };
+          
+          const docData = dataStore[id];
+          
           if (docData) {
             return { exists: () => true, data: () => ({...docData}), id };
           }
-          return { exists: () => false, data: () => null as any, id };
+          return { exists: () => false, data: () => null, id };
         },
         set: async (data: any) => {
           await new Promise(resolve => setTimeout(resolve, 50));
           if (collectionName === 'users') {
             mockUsersDb[id] = { ...data, uid: id } as UserProfile;
           } else if (collectionName === 'jobs') {
-            mockJobsDb[id] = { ...data, id } as Job;
+            // For new jobs, simulate auto-approval
+            mockJobsDb[id] = { ...data, id, status: 'open', approvedByAdmin: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } as Job;
+          } else if (collectionName === 'applications') {
+            mockApplicationsDb[id] = { ...data, id } as Application;
           }
         },
         update: async (data: any) => {
@@ -164,42 +152,89 @@ const db = {
           if (collectionName === 'users' && mockUsersDb[id]) {
             mockUsersDb[id] = { ...mockUsersDb[id], ...data, updatedAt: new Date().toISOString() };
           } else if (collectionName === 'jobs' && mockJobsDb[id]) {
-            mockJobsDb[id] = { ...mockJobsDb[id], ...data, updatedAt: new Date().toISOString() };
+             // For edited jobs, simulate auto-re-approval
+            mockJobsDb[id] = { ...mockJobsDb[id], ...data, status: 'open', approvedByAdmin: true, updatedAt: new Date().toISOString() };
+          } else if (collectionName === 'applications' && mockApplicationsDb[id]) {
+            mockApplicationsDb[id] = { ...mockApplicationsDb[id], ...data, updatedAt: new Date().toISOString() };
           } else {
             console.warn(`Mock DB: Document ${collectionName}/${id} not found for update.`);
           }
         },
+         add: async (data: any) => {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          let newId = '';
+          if (collectionName === 'users') {
+            newId = `user-${Date.now()}`;
+            mockUsersDb[newId] = { ...data, uid: newId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } as UserProfile;
+          } else if (collectionName === 'jobs') {
+            newId = `job${jobIdCounter++}`;
+            // Simulate auto-approval for new jobs in mock
+            mockJobsDb[newId] = { ...data, id: newId, status: 'open', approvedByAdmin: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } as Job;
+          } else if (collectionName === 'applications') {
+            newId = `app${applicationIdCounter++}`;
+            mockApplicationsDb[newId] = { ...data, id: newId, dateApplied: new Date().toISOString() } as Application;
+          }
+          return { id: newId };
+        },
         delete: async () => {
            await new Promise(resolve => setTimeout(resolve, 50));
-           if (collectionName === 'users') {
-            delete mockUsersDb[id];
-          } else if (collectionName === 'jobs') {
-            delete mockJobsDb[id];
-          }
+           if (collectionName === 'users') delete mockUsersDb[id];
+           else if (collectionName === 'jobs') delete mockJobsDb[id]; // True delete for mock
+           else if (collectionName === 'applications') delete mockApplicationsDb[id];
         }
       };
     },
-    add: async (data: any) => {
-      await new Promise(resolve => setTimeout(resolve, 50));
-      const newId = collectionName === 'jobs' ? `job${jobIdCounter++}` : `user-${Date.now()}`;
-      if (collectionName === 'users') {
-        mockUsersDb[newId] = { ...data, uid: newId, createdAt: new Date().toISOString() } as UserProfile;
-      } else if (collectionName === 'jobs') {
-        mockJobsDb[newId] = { ...data, id: newId, createdAt: new Date().toISOString() } as Job;
-      }
-      return { id: newId };
-    },
     // @ts-ignore
-    where: (field: keyof Job | keyof UserProfile, operator: string, value: any) => ({
+    where: (field: keyof Job | keyof UserProfile | keyof Application, operator: string, value: any) => ({
+      // Add a second where for more complex queries if needed, or handle in filter
+      // For now, this mock only supports one .where()
+      where: (field2: keyof Application, operator2: string, value2: any) => ({
+         get: async () => {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          let storeToSearch: any[];
+          if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
+          else if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
+          else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
+          else storeToSearch = [];
+
+          const results = storeToSearch.filter(doc => {
+            const docValue = doc[field as keyof typeof doc];
+            const docValue2 = doc[field2 as keyof typeof doc];
+            let condition1 = false;
+            let condition2 = false;
+
+            if (operator === '==') condition1 = docValue === value;
+            else if (operator === '!=') condition1 = docValue !== value;
+            else if (operator === 'array-contains' && Array.isArray(docValue)) condition1 = docValue.includes(value);
+            
+            if (operator2 === '==') condition2 = docValue2 === value2;
+             // Add more operators for second condition if needed
+            
+            return condition1 && condition2;
+          });
+          return {
+            empty: results.length === 0,
+            docs: results.map(doc => ({
+              id: (doc as any).id || (doc as any).uid,
+              data: () => ({...doc})
+            })),
+          };
+        }
+      }),
       get: async () => {
         await new Promise(resolve => setTimeout(resolve, 50));
-        let storeToSearch = collectionName === 'jobs' ? Object.values(mockJobsDb) : Object.values(mockUsersDb);
+        let storeToSearch: any[];
+        if (collectionName === 'jobs') storeToSearch = Object.values(mockJobsDb);
+        else if (collectionName === 'users') storeToSearch = Object.values(mockUsersDb);
+        else if (collectionName === 'applications') storeToSearch = Object.values(mockApplicationsDb);
+        else storeToSearch = [];
 
         const results = storeToSearch.filter(doc => {
           const docValue = doc[field as keyof typeof doc];
           if (operator === '==') return docValue === value;
           if (operator === '!=') return docValue !== value;
           if (operator === 'array-contains' && Array.isArray(docValue)) return docValue.includes(value);
+          // Add more operators as needed for mock
           return false;
         });
         return {
@@ -214,7 +249,6 @@ const db = {
   })
 };
 
-// --- MOCK STORAGE ---
 const storage = {
   ref: (path?: string) => ({
     put: async () => ({ snapshot: { ref: { getDownloadURL: async () => `https://placehold.co/100x100.png?text=MOCK`}}}),

@@ -12,18 +12,16 @@ export interface UserProfile {
   skills?: string[];
   city?: string;
   availability?: boolean;
-  roleType?: string; // Added from LabourProfileForm
+  roleType?: string; 
   currentWorkSites?: string[];
   pastWorkSites?: string[];
   
-  // Subscription details (for Labour and Customer)
   subscription?: {
     planId: string; 
-    planType: string; // e.g., 'monthly', 'yearly', 'free', 'basic_customer_pack', 'premium_customer_pack'
+    planType: string; 
     validUntil: Date | string | null; 
-    razorpayPaymentId?: string; // For future real payment integration
-    status: 'active' | 'inactive' | 'expired' | 'none'; // 'none' for users who never subscribed
-    // Customer specific for job packs
+    razorpayPaymentId?: string; 
+    status: 'active' | 'inactive' | 'expired' | 'none';
     jobPostLimit?: number; 
     jobPostCount?: number; 
   };
@@ -33,8 +31,8 @@ export interface UserProfile {
 
 export interface Job {
   id: string;
-  customerId: string; // UID of the customer who posted
-  customerName?: string; // Name of the customer
+  customerId: string; 
+  customerName?: string; 
   title: string;
   description: string;
   requiredSkill: string; 
@@ -45,20 +43,24 @@ export interface Job {
   createdAt: Date | string;
   updatedAt?: Date | string;
   approvedByAdmin?: boolean;
-  assignedLabourId?: string; // UID of the labour assigned
+  assignedLabourId?: string; 
 }
 
 export interface Application {
   id: string;
   labourId: string;
-  labourName?: string;
+  labourName?: string; // Added
   jobId: string;
   jobTitle?: string;
   customerId?: string; 
+  customerName?: string; // Added
   message?: string; 
   dateApplied: Date | string;
-  status: 'pending' | 'shortlisted' | 'accepted' | 'rejected_by_customer' | 'withdrawn_by_labour';
+  status: 'Pending' | 'Shortlisted' | 'Accepted' | 'Rejected_by_customer' | 'Withdrawn_by_labour'; // Consistent casing
   proposedRate?: string; 
+  // Added fields to enrich application display
+  jobRequiredSkill?: string;
+  jobLocation?: string;
 }
 
 export interface Payment {
@@ -78,7 +80,6 @@ export interface Payment {
 
 export type UserRole = 'labour' | 'customer' | 'admin';
 
-// For AI Flows (remain unchanged as they are server-side concepts)
 export interface Labor {
   name: string;
   role: string;
@@ -95,7 +96,6 @@ export interface JobPosting {
   location: string;
 }
 
-// Mock User type for client-side auth simulation
 export interface MockAuthUser {
   uid: string;
   email: string | null;
@@ -105,4 +105,3 @@ export interface MockAuthUser {
 export interface MockUserCredential {
   user: MockAuthUser;
 }
-
