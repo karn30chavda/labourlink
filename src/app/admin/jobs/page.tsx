@@ -167,33 +167,35 @@ export default function AdminJobsPage() {
                                 {job.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                               </Badge>
                           </TableCell>
-                          <TableCell className="text-right space-x-2">
-                            <Button variant="outline" size="sm" onClick={() => toast({title: "Info", description:`Viewing details for ${job.title}`})}>
-                                <Eye className="mr-1 h-3.5 w-3.5"/> View
-                            </Button>
-                            {job.status !== 'deleted' && (
-                                <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm" className="bg-destructive/80 hover:bg-destructive">
-                                    <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will mark the job &quot;{job.title}&quot; as deleted. It will no longer be visible to users.
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteJob(job.id, job.title)} className="bg-destructive hover:bg-destructive/90">
-                                        Confirm Delete
-                                    </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                                </AlertDialog>
-                            )}
+                          <TableCell className="text-right">
+                            <div className="flex justify-end items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={() => toast({title: "Info", description:`Viewing details for ${job.title}`})}>
+                                    <Eye className="mr-1 h-3.5 w-3.5"/> View
+                                </Button>
+                                {job.status !== 'deleted' && (
+                                    <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="sm" className="bg-destructive/80 hover:bg-destructive">
+                                        <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will mark the job &quot;{job.title}&quot; as deleted. It will no longer be visible to users.
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteJob(job.id, job.title)} className="bg-destructive hover:bg-destructive/90">
+                                            Confirm Delete
+                                        </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                    </AlertDialog>
+                                )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
