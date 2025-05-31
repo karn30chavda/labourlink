@@ -88,7 +88,7 @@ export default function AdminUsersPage() {
                     placeholder="Search by name, email, or role..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full md:w-1/2 lg:w-1/3 pl-10 p-2 border rounded-md focus:ring-primary focus:border-primary"
+                    className="w-full md:w-1/2 lg:w-1/3 pl-10 border rounded-md focus:ring-primary focus:border-primary"
                     />
                 </div>
               </CardDescription>
@@ -157,4 +157,3 @@ export default function AdminUsersPage() {
     </AuthGuard>
   );
 }
-

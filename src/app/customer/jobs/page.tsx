@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatRelativeDate } from '@/lib/utils';
 import { JobCardSkeleton } from "@/components/jobs/JobCardSkeleton";
+import { Input } from "@/components/ui/input"; // Added Input import
 
 export default function CustomerJobsPage() {
   const { userData } = useAuth();
@@ -118,12 +119,12 @@ export default function CustomerJobsPage() {
 
           <div className="relative mb-6">
             <Search className="absolute h-5 w-5 text-muted-foreground mt-2.5 left-3 pointer-events-none" />
-            <input
+            <Input
               type="text"
               placeholder="Search your jobs by title or description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 p-2 border rounded-md focus:ring-primary focus:border-primary"
+              className="w-full pl-10 border rounded-md focus:ring-primary focus:border-primary"
             />
           </div>
 
@@ -207,4 +208,3 @@ export default function CustomerJobsPage() {
     </AuthGuard>
   );
 }
-

@@ -127,7 +127,7 @@ export default function AdminJobsPage() {
                     placeholder="Search by title, customer, skill, location, status..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full md:w-2/3 lg:w-1/2 pl-10 p-2 border rounded-md focus:ring-primary focus:border-primary"
+                    className="w-full md:w-2/3 lg:w-1/2 pl-10 border rounded-md focus:ring-primary focus:border-primary"
                     />
                 </div>
               </CardDescription>
@@ -208,4 +208,3 @@ export default function AdminJobsPage() {
     </AuthGuard>
   );
 }
-
