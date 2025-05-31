@@ -117,7 +117,7 @@ export default function CustomerJobsPage() {
           </div>
 
           <div className="relative mb-6">
-            <Search className="absolute h-5 w-5 text-muted-foreground mt-2.5 ml-3 pointer-events-none" />
+            <Search className="absolute h-5 w-5 text-muted-foreground mt-2.5 left-3 pointer-events-none" />
             <input
               type="text"
               placeholder="Search your jobs by title or description..."
