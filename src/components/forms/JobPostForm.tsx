@@ -20,14 +20,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { Loader } from "@/components/ui/loader"; // Corrected import
+// import { Loader } from "@/components/ui/loader"; // Corrected import below
 import type { Job } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { generateJobDescription as genJobDescAiFlow } from '@/ai/flows/job-description-generator';
 import { db } from "@/lib/firebase"; // Uses MOCK Firebase
 import { useRouter } from "next/navigation";
-import { Sparkles, Loader2 } from "lucide-react"; // Added Loader2 import
+import { Sparkles, Loader2 } from "lucide-react";
 
 const MAX_DESCRIPTION_LENGTH = 2000;
 
@@ -79,17 +79,14 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
   });
   
   useEffect(() => {
-    if (job?.description) {
-      setDescriptionLength(job.description.length);
-    } else {
-      setDescriptionLength(form.getValues("description")?.length || 0);
-    }
+    const initialDescription = job?.description || form.getValues("description") || "";
+    setDescriptionLength(initialDescription.length);
   }, [job?.description, form]);
 
   const handleDescriptionChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = event.target.value;
     setDescriptionLength(value.length);
-    form.setValue("description", value); // Ensure form value is also updated
+    form.setValue("description", value); 
   };
 
 
@@ -120,10 +117,9 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     }
     setIsLoading(true);
     
-    console.log("[JobPostForm] Submitting job. ID (if editing):", job?.id);
-
     try {
       if (isEditing && job?.id) {
+        const currentJobId = job.id; // For clarity in logging and usage
         const updatePayload = {
             title: data.title,
             description: data.description,
@@ -131,11 +127,14 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
             location: data.location,
             duration: data.duration,
             budget: data.budget || "",
-            updatedAt: new Date().toISOString()
+            // updatedAt is handled by the mock DB
         };
-        console.log("[JobPostForm] Update payload:", JSON.parse(JSON.stringify(updatePayload)));
-        await db.collection("jobs").doc(job.id).update(updatePayload);
+        console.log(`[JobPostForm] Attempting to update job ID: ${currentJobId}`);
+        console.log("[JobPostForm] Update payload for DB:", JSON.parse(JSON.stringify(updatePayload)));
+        await db.collection("jobs").doc(currentJobId).update(updatePayload);
         toast({ title: "Job Updated", description: "Your job post has been updated." });
+        router.push("/customer/jobs");
+        form.reset();
       } else {
         const jobDataPayload = { 
             customerId: userData.uid,
@@ -148,15 +147,14 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
             budget: data.budget || "",
             status: 'open' as Job['status'], 
             approvedByAdmin: true, 
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString() 
+            // createdAt and updatedAt handled by mock DB
         };
-        console.log("[JobPostForm] Create payload:", JSON.parse(JSON.stringify(jobDataPayload)));
+        console.log("[JobPostForm] Create payload for DB:", JSON.parse(JSON.stringify(jobDataPayload)));
         await db.collection("jobs").add(jobDataPayload);
         toast({ title: "Job Posted", description: "Your job post is now live." });
+        router.push("/customer/jobs");
+        form.reset(); 
       }
-      router.push("/customer/jobs");
-      form.reset(); 
     } catch (error: any) {
       console.error("Job Post/Update Error:", error);
       toast({
