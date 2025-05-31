@@ -216,6 +216,20 @@ export default function CustomerDashboardPage() {
   const handleApplicationAction = async (appId: string, action: 'Accepted' | 'Rejected_by_customer') => {
     try {
       await db.collection("applications").doc(appId).update({ status: action, updatedAt: new Date().toISOString() });
+      // If accepted, update the job status to 'assigned'
+      const application = jobApplications.find(app => app.id === appId);
+      if (action === 'Accepted' && application) {
+        await db.collection("jobs").doc(application.jobId).update({ 
+          status: 'assigned', 
+          assignedLabourId: application.labourId,
+          updatedAt: new Date().toISOString() 
+        });
+        // Update local jobs state
+        setCustomerJobs(prevJobs => prevJobs.map(j => 
+            j.id === application.jobId ? { ...j, status: 'assigned', assignedLabourId: application.labourId } : j
+        ));
+      }
+
       setJobApplications(prevApps => prevApps.map(app => app.id === appId ? { ...app, status: action } : app));
       toast({ title: `Application ${action.replace('_by_customer', '')}`, description: `The application has been marked as ${action.toLowerCase().replace('_by_customer', '')}.` });
     } catch (error) {
@@ -316,11 +330,12 @@ export default function CustomerDashboardPage() {
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg">{job.title}</CardTitle>
-                           <Badge variant={job.status === 'open' ? 'default' : job.status === 'pending_approval' ? 'secondary' : (job.status === 'assigned' || job.status === 'offer_sent') ? 'outline' : 'destructive'}
+                           <Badge variant={job.status === 'open' ? 'default' : job.status === 'pending_approval' ? 'secondary' : (job.status === 'assigned' || job.status === 'offer_sent' || job.status === 'in_progress') ? 'outline' : 'destructive'}
                                   className={cn(
                                     'whitespace-nowrap',
                                     job.status === 'open' ? 'bg-green-500 text-white' : '',
                                     job.status === 'assigned' ? 'border-blue-500 text-blue-500' : '',
+                                    job.status === 'in_progress' ? 'border-blue-500 text-blue-500' : '',
                                     job.status === 'offer_sent' ? 'border-purple-500 text-purple-500' : '',
                                     job.status === 'pending_approval' ? 'bg-yellow-500 text-white text-center' : ''
                                   )}
@@ -364,7 +379,7 @@ export default function CustomerDashboardPage() {
                         )}
                       </CardContent>
                       <CardFooter className="flex justify-end gap-2">
-                        {(job.status === 'open' || job.status === 'offer_sent') && (
+                        {job.status === 'open' && (
                           <Button variant="outline" size="sm" onClick={() => handleFindMatch(job)} disabled={matchingLoading && selectedJobForMatch?.id === job.id}>
                             {(matchingLoading && selectedJobForMatch?.id === job.id) || offeringJobLoading === job.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Search className="h-4 w-4 mr-1" />}
                             Find Match (AI)
@@ -479,3 +494,6 @@ export default function CustomerDashboardPage() {
     </AuthGuard>
   );
 }
+
+
+    
