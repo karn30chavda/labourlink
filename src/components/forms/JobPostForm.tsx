@@ -27,7 +27,7 @@ import { siteConfig } from "@/config/site";
 import { generateJobDescription as genJobDescAiFlow } from '@/ai/flows/job-description-generator';
 import { db } from "@/lib/firebase"; // Uses MOCK Firebase
 import { useRouter } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react"; // Added Loader2 import
 
 const MAX_DESCRIPTION_LENGTH = 2000;
 
@@ -330,3 +330,4 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     </Card>
   );
 }
+
