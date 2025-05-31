@@ -25,7 +25,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { format } from 'date-fns';
+import { formatRelativeDate } from '@/lib/utils';
+import { JobCardSkeleton } from "@/components/jobs/JobCardSkeleton";
 
 export default function CustomerJobsPage() {
   const { userData } = useAuth();
@@ -79,20 +80,12 @@ export default function CustomerJobsPage() {
     }
   };
   
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return 'N/A';
-    try {
-      return format(new Date(dateValue), 'PPP'); 
-    } catch (e) {
-      return 'Invalid Date';
-    }
-  };
 
   const getStatusBadgeVariant = (status: Job['status']) => {
     switch (status) {
       case 'open': return 'default';
       case 'pending_approval': return 'secondary';
-      case 'assigned': case 'in_progress': return 'outline';
+      case 'assigned': case 'in_progress': case 'offer_sent': return 'outline';
       case 'completed': return 'default'; 
       case 'cancelled_by_customer': case 'expired': return 'destructive';
       default: return 'outline';
@@ -103,6 +96,7 @@ export default function CustomerJobsPage() {
       case 'open': return 'bg-green-500 text-white';
       case 'pending_approval': return 'bg-yellow-500 text-white text-center';
       case 'assigned': case 'in_progress': return 'border-blue-500 text-blue-500';
+      case 'offer_sent': return 'border-purple-500 text-purple-500';
       case 'completed': return 'bg-primary text-primary-foreground';
       default: return '';
     }
@@ -134,14 +128,23 @@ export default function CustomerJobsPage() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center p-12"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="ml-3 text-lg">Loading your jobs...</p></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => <JobCardSkeleton key={i} />)}
+            </div>
           ) : filteredJobs.length === 0 ? (
             <div className="text-center py-12">
               <Briefcase className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-              <h3 className="text-2xl font-semibold text-foreground">No Job Posts Found</h3>
+              <h3 className="text-2xl font-semibold text-foreground">
+                {searchTerm ? "No Matching Jobs Found" : "No Job Posts Yet"}
+              </h3>
               <p className="text-muted-foreground mt-2">
-                {searchTerm ? "Try adjusting your search term." : <>You haven&apos;t posted any jobs yet. <Link href="/customer/post-job" className="text-primary hover:underline">Post your first job!</Link></>}
+                {searchTerm ? "Try adjusting your search term or clear filters." : "It looks like you haven't posted any jobs. Create one now to find skilled labour!"}
               </p>
+               {!searchTerm && (
+                <Button asChild className="mt-6">
+                  <Link href="/customer/post-job"><PlusCircle className="mr-2 h-4 w-4" /> Post Your First Job</Link>
+                </Button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -160,9 +163,9 @@ export default function CustomerJobsPage() {
                     <CardDescription>
                       Skill: {job.requiredSkill} | Location: {job.location}
                       <br />
-                      Posted: {formatDate(job.createdAt)}
+                      Posted: {formatRelativeDate(job.createdAt)}
                       {job.updatedAt && job.updatedAt !== job.createdAt && (
-                        <> | Updated: {formatDate(job.updatedAt)}</>
+                        <> | Updated: {formatRelativeDate(job.updatedAt)}</>
                       )}
                     </CardDescription>
                   </CardHeader>

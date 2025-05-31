@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { siteConfig } from "@/config/site";
 import { Button } from "@/components/ui/button";
-import { Search, X } from "lucide-react";
+import { Search, X, Briefcase } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { JobCardSkeleton } from "@/components/jobs/JobCardSkeleton";
+import Link from "next/link";
 
 export default function JobsPage() {
   const { userData } = useAuth();
@@ -86,7 +88,7 @@ export default function JobsPage() {
   };
 
 
-  if (loading) {
+  if (loading && jobs.length === 0) { // Show PageLoader only on initial full load
     return <PageLoader message="Loading available jobs..." />;
   }
 
@@ -146,13 +148,22 @@ export default function JobsPage() {
         </div>
       </div>
 
-      {filteredJobs.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => <JobCardSkeleton key={i} />)}
+        </div>
+      ) : filteredJobs.length === 0 ? (
         <div className="text-center py-12">
-          <Search className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-          <h3 className="text-2xl font-semibold text-foreground">No Jobs Found</h3>
+          <Briefcase className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+          <h3 className="text-2xl font-semibold text-foreground">No Jobs Found Matching Your Criteria</h3>
           <p className="text-muted-foreground mt-2">
             Try adjusting your search filters or check back later for new postings.
           </p>
+           {userData?.role === 'customer' && (
+             <Button asChild className="mt-6">
+                <Link href="/customer/post-job">Post a Job</Link>
+             </Button>
+           )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

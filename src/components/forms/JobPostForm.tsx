@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader } from "@/components/ui/loader";
 import type { Job } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,10 +28,12 @@ import { generateJobDescription as genJobDescAiFlow } from '@/ai/flows/job-descr
 import { db } from "@/lib/firebase"; // Uses MOCK Firebase
 import { useRouter } from "next/navigation";
 
+const MAX_DESCRIPTION_LENGTH = 2000;
+
 const jobPostFormSchema = z.object({
   title: z.string().min(5, { message: "Title must be at least 5 characters." }).max(100),
   descriptionKeywords: z.string().min(10, { message: "Provide at least 10 characters of keywords for description."}).max(200).optional(),
-  description: z.string().min(20, { message: "Description must be at least 20 characters." }).max(2000),
+  description: z.string().min(20, { message: "Description must be at least 20 characters." }).max(MAX_DESCRIPTION_LENGTH, { message: `Description cannot exceed ${MAX_DESCRIPTION_LENGTH} characters.` }),
   requiredSkill: z.string().min(1, { message: "Please select a required skill." }),
   location: z.string().min(1, { message: "Please select the job location/city." }),
   duration: z.string().min(1, { message: "Please select the job duration." }),
@@ -51,6 +53,8 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [descriptionLength, setDescriptionLength] = useState(0);
+
 
   const form = useForm<JobPostFormValues>({
     resolver: zodResolver(jobPostFormSchema),
@@ -72,6 +76,18 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       budget: "",
     },
   });
+  
+  useEffect(() => {
+    if (job?.description) {
+      setDescriptionLength(job.description.length);
+    }
+  }, [job?.description]);
+
+  const handleDescriptionChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setDescriptionLength(event.target.value.length);
+    form.setValue("description", event.target.value); // Ensure form value is also updated
+  };
+
 
   const handleGenerateDescription = async () => {
     const keywords = form.getValues("descriptionKeywords");
@@ -83,6 +99,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
     try {
       const result = await genJobDescAiFlow({ keywords });
       form.setValue("description", result.jobDescription);
+      setDescriptionLength(result.jobDescription.length);
       toast({ title: "Description Generated!", description: "AI has drafted a job description for you." });
     } catch (error) {
       console.error("AI Generation Error:", error);
@@ -198,8 +215,17 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
                 <FormItem>
                   <FormLabel>Job Description</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Detailed description of the job, responsibilities, requirements, etc." {...field} rows={6} />
+                    <Textarea 
+                        placeholder="Detailed description of the job, responsibilities, requirements, etc." 
+                        {...field} 
+                        rows={6} 
+                        onChange={handleDescriptionChange} 
+                        value={field.value}
+                    />
                   </FormControl>
+                  <div className="text-xs text-muted-foreground text-right pr-1">
+                    {descriptionLength}/{MAX_DESCRIPTION_LENGTH}
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

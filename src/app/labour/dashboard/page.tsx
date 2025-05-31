@@ -11,10 +11,10 @@ import type { Job, JobPosting, Application, DirectJobOffer } from "@/types";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase"; 
 import Link from "next/link";
-import { AlertCircle, Briefcase, CheckCircle, Eye, FileText, Loader2, ShieldCheck, CreditCard, Gift } from "lucide-react";
+import { AlertCircle, Briefcase, CheckCircle, Eye, FileText, Loader2, ShieldCheck, CreditCard, Gift, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast"; 
-import { format } from 'date-fns';
+import { formatRelativeDate, formatFullDate } from '@/lib/utils';
 
 
 export default function LabourDashboardPage() {
@@ -141,14 +141,6 @@ export default function LabourDashboardPage() {
     }
   }, [userData, isSubscribed, toast]); 
   
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return 'N/A';
-    try {
-      return format(new Date(dateValue), 'PPP');
-    } catch (e) {
-      return 'Invalid Date';
-    }
-  };
 
   return (
     <AuthGuard>
@@ -160,7 +152,7 @@ export default function LabourDashboardPage() {
               <p className="text-muted-foreground">Here&apos;s your labour dashboard.</p>
             </div>
             <Button asChild>
-              <Link href="/jobs">Browse All Jobs</Link>
+              <Link href="/jobs"><Search className="mr-2 h-4 w-4" /> Browse All Jobs</Link>
             </Button>
           </div>
 
@@ -210,7 +202,7 @@ export default function LabourDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className={`text-xl font-bold ${isSubscribed ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {isSubscribed ? `Active (until ${formatDate(userData?.subscription?.validUntil)})` : 'Inactive'}
+                  {isSubscribed ? `Active (until ${formatRelativeDate(userData?.subscription?.validUntil)})` : 'Inactive'}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   <Link href="/labour/subscription" className="text-primary hover:underline">
@@ -243,7 +235,17 @@ export default function LabourDashboardPage() {
                 </div>
               )}
               {!loadingAiJobs && !errorAiJobs && relevantJobs.length === 0 && isSubscribed && (
-                <p className="text-muted-foreground">No specific job suggestions for you right now. Try browsing all jobs or update your profile.</p>
+                 <div className="text-center py-8">
+                    <Search className="h-12 w-12 mx-auto text-muted-foreground mb-3"/>
+                    <h3 className="text-xl font-semibold text-foreground">No AI Suggestions Right Now</h3>
+                    <p className="text-muted-foreground mt-1">
+                      We couldn&apos;t find specific AI-powered job matches for you at this moment.
+                      Ensure your <Link href="/labour/profile" className="text-primary hover:underline">profile</Link> is complete and up-to-date.
+                    </p>
+                    <Button asChild className="mt-4">
+                        <Link href="/jobs">Browse All Jobs</Link>
+                    </Button>
+                 </div>
               )}
               {!loadingAiJobs && !errorAiJobs && relevantJobs.length > 0 && isSubscribed && (
                 <ul className="space-y-4">
@@ -266,6 +268,7 @@ export default function LabourDashboardPage() {
                {!isSubscribed && !loadingAiJobs && (
                  <div className="text-center py-8">
                     <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-3"/>
+                    <h3 className="text-xl font-semibold text-foreground">Unlock AI Job Matches</h3>
                     <p className="text-muted-foreground">Your AI job suggestions are waiting for you!</p>
                     <Button asChild className="mt-3">
                         <Link href="/labour/subscription">Activate Subscription</Link>
@@ -284,14 +287,21 @@ export default function LabourDashboardPage() {
               {loadingApplications ? (
                  <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading recent applications...</p></div>
               ) : recentApplications.length === 0 ? (
-                <p className="text-muted-foreground">You haven&apos;t applied to any jobs yet. <Link href="/jobs" className="text-primary hover:underline">Find jobs now!</Link></p>
+                 <div className="text-center py-8">
+                    <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3"/>
+                    <h3 className="text-xl font-semibold text-foreground">No Recent Applications</h3>
+                    <p className="text-muted-foreground mt-1">You haven&apos;t applied to any jobs recently. Let&apos;s find your next opportunity!</p>
+                    <Button asChild className="mt-4">
+                        <Link href="/jobs"><Search className="mr-2 h-4 w-4"/>Find Jobs Now</Link>
+                    </Button>
+                 </div>
               ) : (
                 <div className="space-y-4">
                   {recentApplications.map(app => (
                     <div key={app.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-lg hover:shadow-md transition-shadow">
                       <div>
                         <h3 className="font-semibold text-lg">{app.jobTitle}</h3>
-                        <p className="text-sm text-muted-foreground">Applied on: {formatDate(app.dateApplied)}</p>
+                        <p className="text-sm text-muted-foreground">Applied {formatRelativeDate(app.dateApplied)}</p>
                       </div>
                       <div className="flex items-center gap-2 mt-2 sm:mt-0">
                         <Badge variant={app.status === 'Shortlisted' ? 'default' : app.status === 'Pending' ? 'secondary' : app.status === 'Accepted' ? 'default' : 'outline'}

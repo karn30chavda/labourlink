@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import type { Application, Job } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Briefcase, Eye, FileText, Loader2, Trash2, MapPin, User } from "lucide-react";
+import { Briefcase, Eye, FileText, Loader2, Trash2, MapPin, User, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -24,7 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { db } from "@/lib/firebase"; // Using MOCK Firebase
-import { format } from 'date-fns';
+import { formatRelativeDate } from '@/lib/utils';
 
 export default function LabourApplicationsPage() {
   const { userData } = useAuth();
@@ -82,14 +82,6 @@ export default function LabourApplicationsPage() {
     }
   };
   
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return 'N/A';
-    try {
-      return format(new Date(dateValue), 'PPP');
-    } catch (e) {
-      return 'Invalid Date';
-    }
-  };
 
   const getStatusBadgeVariant = (status: Application['status']) => {
     switch (status) {
@@ -121,7 +113,7 @@ export default function LabourApplicationsPage() {
               <p className="text-muted-foreground">Track the status of jobs you&apos;ve applied for.</p>
             </div>
             <Button asChild>
-              <Link href="/jobs"><Briefcase className="mr-2 h-4 w-4" /> Browse More Jobs</Link>
+              <Link href="/jobs"><Search className="mr-2 h-4 w-4" /> Browse More Jobs</Link>
             </Button>
           </div>
 
@@ -131,15 +123,15 @@ export default function LabourApplicationsPage() {
             <Card className="text-center py-12">
               <CardHeader>
                 <FileText className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-                <CardTitle className="text-2xl font-semibold text-foreground">No Applications Found</CardTitle>
+                <CardTitle className="text-2xl font-semibold text-foreground">No Applications Yet</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground mt-2">
-                  You haven&apos;t applied to any jobs yet. 
-                  <Button variant="link" asChild className="p-1">
-                    <Link href="/jobs">Find jobs now!</Link>
-                  </Button>
+                  You haven&apos;t applied for any jobs. Your journey to new projects starts here!
                 </p>
+                <Button variant="default" asChild className="mt-6">
+                    <Link href="/jobs"><Search className="mr-2 h-4 w-4"/>Find Jobs Now</Link>
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -157,7 +149,7 @@ export default function LabourApplicationsPage() {
                       </Badge>
                     </div>
                     <CardDescription>
-                      Applied on: {formatDate(app.dateApplied)}
+                      Applied: {formatRelativeDate(app.dateApplied)}
                       {app.customerName && <span className="flex items-center mt-1"><User className="mr-1.5 h-3.5 w-3.5 text-muted-foreground"/> Employer: {app.customerName}</span>}
                     </CardDescription>
                   </CardHeader>

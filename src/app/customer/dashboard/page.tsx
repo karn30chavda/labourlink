@@ -11,7 +11,7 @@ import type { Job, Labor, Application, UserProfile, DirectJobOffer } from "@/typ
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { db } from "@/lib/firebase"; 
-import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle, FileText, UserCheck, MessageSquare, Send } from "lucide-react";
+import { AlertCircle, Briefcase, CheckCircle, Eye, Loader2, Search, Users, Edit3, Trash2, PlusCircle, FileText, UserCheck, MessageSquare, Send, Sparkles, HardHat } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -26,7 +26,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { format } from 'date-fns';
+import { formatRelativeDate } from '@/lib/utils';
 
 
 export default function CustomerDashboardPage() {
@@ -224,15 +224,6 @@ export default function CustomerDashboardPage() {
     }
   };
   
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return 'N/A';
-    try {
-      return format(new Date(dateValue), 'PPP'); // e.g., Jul 24, 2024
-    } catch (e) {
-      return 'Invalid Date';
-    }
-  };
-
 
   return (
     <AuthGuard>
@@ -310,7 +301,14 @@ export default function CustomerDashboardPage() {
               {loadingJobs ? (
                  <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading your jobs...</p></div>
               ) : customerJobs.length === 0 ? (
-                <p className="text-muted-foreground">You haven&apos;t posted any jobs yet. <Link href="/customer/post-job" className="text-primary hover:underline">Post your first job!</Link></p>
+                <div className="text-center py-8">
+                  <Briefcase className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+                  <h3 className="text-xl font-semibold text-foreground">No Jobs Posted Yet</h3>
+                  <p className="text-muted-foreground mt-1">Ready to find the perfect skilled labour for your project?</p>
+                  <Button asChild className="mt-4">
+                    <Link href="/customer/post-job"><PlusCircle className="mr-2 h-4 w-4" /> Post Your First Job</Link>
+                  </Button>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {customerJobs.slice(0,3).map(job => (
@@ -330,7 +328,7 @@ export default function CustomerDashboardPage() {
                             {job.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                           </Badge>
                         </div>
-                        <CardDescription>Skill: {job.requiredSkill} | Location: {job.location} | Duration: {job.duration}</CardDescription>
+                        <CardDescription>Skill: {job.requiredSkill} | Location: {job.location} | Duration: {job.duration} | Posted: {formatRelativeDate(job.createdAt)}</CardDescription>
                       </CardHeader>
                       <CardContent>
                         {selectedJobForMatch?.id === job.id && (
@@ -339,7 +337,13 @@ export default function CustomerDashboardPage() {
                             {matchingError && <p className="text-destructive flex items-center"><AlertCircle className="mr-2 h-5 w-5" /> {matchingError}</p>}
                             {bestMatch && bestMatchLabourProfile && (
                               <div>
-                                <h4 className="font-semibold text-md mb-1">AI Suggested Match:</h4>
+                                <h4 className="font-semibold text-md mb-2 flex items-center">
+                                  <Badge variant="secondary" className="mr-2 bg-accent/20 text-accent-foreground border-accent/50">
+                                    <Sparkles className="h-3.5 w-3.5 mr-1 text-accent" />
+                                    AI Suggested
+                                  </Badge>
+                                  Match:
+                                </h4>
                                 <p><strong>Name:</strong> {bestMatch.name} ({bestMatch.role})</p>
                                 <p><strong>Skills:</strong> {bestMatch.skills.join(", ")}</p>
                                 <p><strong>City:</strong> {bestMatch.city}</p>
@@ -405,7 +409,16 @@ export default function CustomerDashboardPage() {
               {loadingApplications ? (
                 <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading applications...</p></div>
               ) : jobApplications.length === 0 ? (
-                <p className="text-muted-foreground">No applications received for your jobs yet.</p>
+                 <div className="text-center py-8">
+                    <HardHat className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+                    <h3 className="text-xl font-semibold text-foreground">No Applications Received Yet</h3>
+                    <p className="text-muted-foreground mt-1">Once labours apply to your jobs, their applications will appear here.</p>
+                    {customerJobs.length === 0 && (
+                         <Button asChild variant="link" className="mt-2">
+                            <Link href="/customer/post-job">Post a job to get started</Link>
+                        </Button>
+                    )}
+                </div>
               ) : (
                 <div className="space-y-4">
                   {jobApplications.slice(0, 5).map(app => (
@@ -426,7 +439,7 @@ export default function CustomerDashboardPage() {
                           </Badge>
                         </div>
                          <CardDescription>
-                          Applicant: {app.labourName} ({app.labourRoleType || 'N/A'}) applied on {formatDate(app.dateApplied)}
+                          Applicant: {app.labourName} ({app.labourRoleType || 'N/A'}) applied {formatRelativeDate(app.dateApplied)}
                         </CardDescription>
                       </CardHeader>
                       {app.message && <CardContent><p className="text-sm italic text-muted-foreground p-2 bg-muted/30 rounded-md border">Message: "{app.message}"</p></CardContent>}
@@ -434,7 +447,7 @@ export default function CustomerDashboardPage() {
                         <div className="flex w-full justify-end gap-2">
                             {app.status === 'Pending' && (
                             <>
-                                <Button size="sm" variant="outline" className="mx-1" onClick={() => handleApplicationAction(app.id!, 'Accepted')}>
+                                <Button size="sm" variant="outline" className="mx-1 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700" onClick={() => handleApplicationAction(app.id!, 'Accepted')}>
                                     <UserCheck className="mr-2 h-4 w-4"/> Accept
                                 </Button>
                                 <Button size="sm" variant="destructive" className="mx-1 bg-destructive/80 hover:bg-destructive" onClick={() => handleApplicationAction(app.id!, 'Rejected_by_customer')}>
@@ -444,7 +457,7 @@ export default function CustomerDashboardPage() {
                             )}
                         </div>
                         <Button size="sm" variant="ghost" className="w-full justify-end sm:w-auto" onClick={() => toast({title: "Info", description: `Contacting ${app.labourName}`})}>
-                            <MessageSquare className="mr-2 h-4 w-4"/> Contact
+                            <MessageSquare className="mr-2 h-4 w-4"/> Contact {app.labourName}
                         </Button>
                       </CardFooter>
                     </Card>
@@ -466,4 +479,3 @@ export default function CustomerDashboardPage() {
     </AuthGuard>
   );
 }
-

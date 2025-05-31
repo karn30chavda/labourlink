@@ -11,7 +11,8 @@ import { siteConfig } from "@/config/site";
 import { db } from "@/lib/firebase"; // Using MOCK Firebase
 import { CheckCircle, CreditCard, Loader2, ShieldAlert } from "lucide-react";
 import { useState } from "react";
-import { format, addMonths, addYears } from 'date-fns';
+import { addMonths, addYears } from 'date-fns';
+import { formatRelativeDate, formatFullDate } from '@/lib/utils';
 
 export default function LabourSubscriptionPage() {
   const { userData, refreshUserData } = useAuth();
@@ -75,16 +76,6 @@ export default function LabourSubscriptionPage() {
     }
   };
   
-  const getFormattedDate = (dateValue: any) => {
-    if (!dateValue) return "N/A";
-    try {
-      return format(new Date(dateValue), 'PPP');
-    } catch (e) {
-      return "Invalid Date";
-    }
-  };
-
-
   return (
     <AuthGuard>
       <RoleGuard allowedRoles={["labour"]}>
@@ -97,7 +88,7 @@ export default function LabourSubscriptionPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-              {currentSubscription && currentSubscription.status !== 'none' ? (
+              {currentSubscription && currentSubscription.status !== 'none' && currentSubscription.planId !== 'free_labour' ? (
                 <Card className="bg-secondary/30">
                   <CardHeader>
                     <CardTitle className="text-xl flex items-center">
@@ -111,7 +102,7 @@ export default function LabourSubscriptionPage() {
                   <CardContent>
                     <p>Status: <span className={`font-semibold ${currentSubscription.status === 'active' ? 'text-green-600' : 'text-yellow-600'}`}>{currentSubscription.status.toUpperCase()}</span></p>
                     {currentSubscription.validUntil && (
-                       <p>Valid Until: {getFormattedDate(currentSubscription.validUntil)}</p>
+                       <p>Valid Until: {formatFullDate(currentSubscription.validUntil)} (renews {formatRelativeDate(currentSubscription.validUntil)})</p>
                     )}
                      {currentSubscription.status !== 'active' && <p className="mt-2 text-sm text-destructive">Your subscription is not active. Please renew or choose a new plan to apply for jobs.</p>}
                   </CardContent>

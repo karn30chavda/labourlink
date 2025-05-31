@@ -12,7 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { siteConfig } from "@/config/site";
 import { Button } from "@/components/ui/button";
-import { Search, X, Users } from "lucide-react";
+import { Search, X, Users, UserSearch } from "lucide-react";
+import { LabourCardSkeleton } from "@/components/labour/LabourCardSkeleton";
 
 export default function SearchLabourPage() {
   const [labours, setLabours] = useState<UserProfile[]>([]);
@@ -69,7 +70,7 @@ export default function SearchLabourPage() {
   };
 
 
-  if (loading) {
+  if (loading && labours.length === 0) { // Show PageLoader only on initial full load
     return <PageLoader message="Finding skilled labour..." />;
   }
 
@@ -139,12 +140,16 @@ export default function SearchLabourPage() {
         </div>
       </div>
 
-      {filteredLabours.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+           {[...Array(6)].map((_, i) => <LabourCardSkeleton key={i} />)}
+        </div>
+      ) : filteredLabours.length === 0 ? (
         <div className="text-center py-12">
-          <Users className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-          <h3 className="text-2xl font-semibold text-foreground">No Labour Found</h3>
+          <UserSearch className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+          <h3 className="text-2xl font-semibold text-foreground">No Labour Profiles Match Your Search</h3>
           <p className="text-muted-foreground mt-2">
-            Try adjusting your search filters or check back later.
+            Try adjusting your search filters or check back later as new professionals join.
           </p>
         </div>
       ) : (

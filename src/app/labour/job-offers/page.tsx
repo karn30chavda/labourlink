@@ -9,11 +9,11 @@ import { useAuth } from "@/hooks/use-auth";
 import type { DirectJobOffer, Job } from "@/types";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Briefcase, Check, Gift, Loader2, X } from "lucide-react";
+import { Briefcase, Check, Gift, Loader2, X, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase"; 
-import { format } from 'date-fns';
+import { formatRelativeDate, formatFullDate } from '@/lib/utils';
 
 export default function LabourJobOffersPage() {
   const { userData } = useAuth();
@@ -89,14 +89,6 @@ export default function LabourJobOffersPage() {
     }
   };
   
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return 'N/A';
-    try {
-      return format(new Date(dateValue), 'PPP p'); // e.g., Jul 24, 2024, 4:30 PM
-    } catch (e) {
-      return 'Invalid Date';
-    }
-  };
 
   const getStatusBadgeVariant = (status: DirectJobOffer['offerStatus']) => {
     switch (status) {
@@ -145,7 +137,7 @@ export default function LabourJobOffersPage() {
                         <CardHeader>
                             <CardTitle className="text-lg">{offer.jobTitle || "Job Title Missing"}</CardTitle>
                             <CardDescription>
-                            Offered by: {offer.customerName || "A Customer"} on {formatDate(offer.createdAt)}
+                            Offered by: {offer.customerName || "A Customer"} | Received: {formatRelativeDate(offer.createdAt)}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -198,7 +190,7 @@ export default function LabourJobOffersPage() {
                                 </Badge>
                                 </div>
                                 <CardDescription>
-                                From: {offer.customerName || "A Customer"} | Last updated: {formatDate(offer.updatedAt || offer.createdAt)}
+                                From: {offer.customerName || "A Customer"} | Last updated: {formatRelativeDate(offer.updatedAt || offer.createdAt)}
                                 </CardDescription>
                             </CardHeader>
                         </Card>
@@ -215,11 +207,12 @@ export default function LabourJobOffersPage() {
                     </CardHeader>
                     <CardContent>
                     <p className="text-muted-foreground mt-2">
-                        When customers send you direct job offers, they will appear here.
-                        <Button variant="link" asChild className="p-1">
-                        <Link href="/jobs">Keep browsing jobs!</Link>
-                        </Button>
+                        When customers send you direct job offers, they will appear here. 
+                        Keep your profile updated and browse jobs to get noticed!
                     </p>
+                    <Button variant="default" asChild className="mt-6">
+                        <Link href="/jobs"><Search className="mr-2 h-4 w-4"/>Find Jobs</Link>
+                    </Button>
                     </CardContent>
                 </Card>
               )}
