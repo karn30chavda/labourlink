@@ -8,6 +8,7 @@ export interface UserProfile {
   role: 'labour' | 'customer' | 'admin';
   phone?: string;
   profilePhotoUrl?: string;
+  disabled?: boolean; // Added for admin control
   
   // Labour specific
   skills?: string[];
@@ -54,7 +55,7 @@ export interface Application {
   labourRoleType?: string; 
   jobId: string;
   jobTitle?: string;
-  customerId?: string; 
+  customerId: string; // Made non-optional as it's useful for context
   customerName?: string;
   message?: string; 
   dateApplied: string; // Changed from Timestamp | string

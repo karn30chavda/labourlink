@@ -1,32 +1,29 @@
+
 "use client";
 
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { BarChart, CheckSquare, DollarSign, Users, Briefcase } from "lucide-react";
 import Link from "next/link";
 
-// Mock data for admin dashboard
+// Mock data for admin dashboard - can be fetched dynamically later
 const mockAdminStats = {
-  totalUsers: 152,
-  totalLabours: 85,
-  totalCustomers: 67,
-  totalJobsPosted: 210,
-  pendingApprovals: 12,
-  totalPayments: 75,
-  totalRevenue: 15750, // Example currency amount
+  totalUsers: 152, // This will be dynamic from DB
+  totalJobsPosted: 210, // This will be dynamic from DB
+  // Removed pendingApprovals and totalPayments as corresponding pages are not implemented yet
 };
 
 export default function AdminDashboardPage() {
-  const { userData } = useAuth();
+  const { userData } = useAuth(); // Though not directly used here, good for context
 
   const adminCards = [
     { title: "Total Users", value: mockAdminStats.totalUsers, icon: <Users className="h-6 w-6 text-primary" />, href: "/admin/users", description: "All registered users" },
     { title: "Total Jobs", value: mockAdminStats.totalJobsPosted, icon: <Briefcase className="h-6 w-6 text-primary" />, href: "/admin/jobs", description: "Jobs posted on platform" },
-    { title: "Pending Approvals", value: mockAdminStats.pendingApprovals, icon: <CheckSquare className="h-6 w-6 text-orange-500" />, href: "/admin/approvals", description: "Jobs awaiting review" },
-    { title: "Total Payments", value: mockAdminStats.totalPayments, icon: <DollarSign className="h-6 w-6 text-green-500" />, href: "/admin/payments", description: "Successful transactions" },
+    // { title: "Pending Approvals", value: mockAdminStats.pendingApprovals, icon: <CheckSquare className="h-6 w-6 text-orange-500" />, href: "/admin/approvals", description: "Jobs awaiting review" },
+    // { title: "Total Payments", value: mockAdminStats.totalPayments, icon: <DollarSign className="h-6 w-6 text-green-500" />, href: "/admin/payments", description: "Successful transactions" },
   ];
 
   return (
@@ -48,7 +45,7 @@ export default function AdminDashboardPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-4xl font-bold mb-1">{card.value}</p>
+                  <p className="text-4xl font-bold mb-1">{card.value}</p> {/* Value should be fetched */}
                   <p className="text-sm text-muted-foreground">{card.description}</p>
                 </CardContent>
                 <CardFooter>
@@ -66,11 +63,11 @@ export default function AdminDashboardPage() {
                 <CardTitle>Quick Actions</CardTitle>
                 <CardDescription>Perform common administrative tasks.</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4">
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Button asChild variant="secondary"><Link href="/admin/users">Manage Users</Link></Button>
                 <Button asChild variant="secondary"><Link href="/admin/jobs">Manage Jobs</Link></Button>
-                <Button asChild variant="secondary"><Link href="/admin/approvals">Approve Posts</Link></Button>
-                <Button asChild variant="secondary"><Link href="/admin/payments">View Payments</Link></Button>
+                {/* <Button asChild variant="secondary"><Link href="/admin/approvals">Approve Posts</Link></Button> */}
+                {/* <Button asChild variant="secondary"><Link href="/admin/payments">View Payments</Link></Button> */}
               </CardContent>
             </Card>
 

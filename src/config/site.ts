@@ -54,8 +54,8 @@ export const siteConfig = {
       { title: "Dashboard", href: "/admin/dashboard" },
       { title: "Manage Users", href: "/admin/users" },
       { title: "Manage Jobs", href: "/admin/jobs" },
-      { title: "Approve Posts", href: "/admin/approvals" },
-      { title: "Payments Log", href: "/admin/payments" },
+      // { title: "Approve Posts", href: "/admin/approvals" }, // Commented out as page doesn't exist
+      // { title: "Payments Log", href: "/admin/payments" }, // Commented out as page doesn't exist
     ],
   },
   roles: {

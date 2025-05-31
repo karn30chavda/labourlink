@@ -20,13 +20,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { Loader } from "@/components/ui/loader";
+import { Loader } from "@/components/ui/loader"; // Corrected import
 import type { Job } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { siteConfig } from "@/config/site";
 import { generateJobDescription as genJobDescAiFlow } from '@/ai/flows/job-description-generator';
 import { db } from "@/lib/firebase"; // Uses MOCK Firebase
 import { useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
 
 const MAX_DESCRIPTION_LENGTH = 2000;
 
@@ -80,12 +81,15 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
   useEffect(() => {
     if (job?.description) {
       setDescriptionLength(job.description.length);
+    } else {
+      setDescriptionLength(form.getValues("description")?.length || 0);
     }
-  }, [job?.description]);
+  }, [job?.description, form]);
 
   const handleDescriptionChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setDescriptionLength(event.target.value.length);
-    form.setValue("description", event.target.value); // Ensure form value is also updated
+    const value = event.target.value;
+    setDescriptionLength(value.length);
+    form.setValue("description", value); // Ensure form value is also updated
   };
 
 
@@ -115,37 +119,40 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
       return;
     }
     setIsLoading(true);
-
-    const jobDataPayload = { 
-      customerId: userData.uid,
-      customerName: userData.name || "Unknown Customer",
-      title: data.title,
-      description: data.description,
-      requiredSkill: data.requiredSkill,
-      location: data.location,
-      duration: data.duration,
-      budget: data.budget || "",
-      status: 'open', // For mock, directly 'open'
-      approvedByAdmin: true, // For mock, directly 'true'
-    };
     
     console.log("[JobPostForm] Submitting job. ID (if editing):", job?.id);
-    console.log("[JobPostForm] Payload:", JSON.parse(JSON.stringify(jobDataPayload)));
 
     try {
       if (isEditing && job?.id) {
-        await db.collection("jobs").doc(job.id).update({
-            ...jobDataPayload,
+        const updatePayload = {
+            title: data.title,
+            description: data.description,
+            requiredSkill: data.requiredSkill,
+            location: data.location,
+            duration: data.duration,
+            budget: data.budget || "",
             updatedAt: new Date().toISOString()
-        });
-        console.log("[JobPostForm] Update call completed for job ID:", job.id);
+        };
+        console.log("[JobPostForm] Update payload:", JSON.parse(JSON.stringify(updatePayload)));
+        await db.collection("jobs").doc(job.id).update(updatePayload);
         toast({ title: "Job Updated", description: "Your job post has been updated." });
       } else {
-        await db.collection("jobs").add({ 
-            ...jobDataPayload, 
+        const jobDataPayload = { 
+            customerId: userData.uid,
+            customerName: userData.name || "Unknown Customer",
+            title: data.title,
+            description: data.description,
+            requiredSkill: data.requiredSkill,
+            location: data.location,
+            duration: data.duration,
+            budget: data.budget || "",
+            status: 'open' as Job['status'], 
+            approvedByAdmin: true, 
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString() 
-        });
+        };
+        console.log("[JobPostForm] Create payload:", JSON.parse(JSON.stringify(jobDataPayload)));
+        await db.collection("jobs").add(jobDataPayload);
         toast({ title: "Job Posted", description: "Your job post is now live." });
       }
       router.push("/customer/jobs");
@@ -199,7 +206,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
                       Provide some keywords, and our AI can help draft a job description for you.
                     </FormDescription>
                     <Button type="button" variant="outline" size="sm" onClick={handleGenerateDescription} disabled={isAiGenerating}>
-                      {isAiGenerating ? <Loader className="mr-2" size={14} /> : null}
+                      {isAiGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4 text-accent"/>}
                       Generate with AI
                     </Button>
                     <FormMessage />
@@ -220,7 +227,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
                         {...field} 
                         rows={6} 
                         onChange={handleDescriptionChange} 
-                        value={field.value}
+                        value={field.value || ""}
                     />
                   </FormControl>
                   <div className="text-xs text-muted-foreground text-right pr-1">
@@ -306,7 +313,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
                   <FormItem>
                     <FormLabel>Budget (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., ₹5000 - ₹7000 or Negotiable" {...field} />
+                      <Input placeholder="e.g., ₹5000 - ₹7000 or Negotiable" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -314,7 +321,7 @@ export function JobPostForm({ job, isEditing = false }: JobPostFormProps) {
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading || isAiGenerating}>
-              {isLoading ? <Loader className="mr-2" size={16} /> : null}
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {isEditing ? "Update Job Post" : "Post Job"}
             </Button>
           </form>
