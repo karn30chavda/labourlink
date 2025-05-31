@@ -81,7 +81,7 @@ export default function AdminUsersPage() {
             <CardHeader>
               <CardTitle>All Users ({filteredUsers.length})</CardTitle>
               <CardDescription>
-                 <div className="mt-2 mb-4">
+                 <div className="relative mt-2 mb-4">
                     <Search className="absolute h-5 w-5 text-muted-foreground mt-2.5 ml-3 pointer-events-none" />
                     <Input
                     type="text"
@@ -157,3 +157,4 @@ export default function AdminUsersPage() {
     </AuthGuard>
   );
 }
+
