@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { createContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { auth, db } from "@/lib/firebase"; // Uses MOCK Firebase
 import type { UserProfile, UserRole, MockAuthUser } from "@/types";
 import { siteConfig } from "@/config/site";
@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast";
 interface AuthContextType {
   user: MockAuthUser | null;
   userData: UserProfile | null;
-  loading: boolean; // This is the public name for the loading state
+  loading: boolean;
   isAdmin: boolean;
   isLabour: boolean;
   isCustomer: boolean;
@@ -25,88 +25,94 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<MockAuthUser | null>(null);
   const [userData, setUserData] = useState<UserProfile | null>(null);
-  const [authProcessLoading, setAuthProcessLoading] = useState(true); // Internal loading state
+  const [authProcessLoading, setAuthProcessLoading] = useState(true);
 
-  const fetchUserData = async (currentAuthUser: MockAuthUser) => {
-    if (!currentAuthUser || !currentAuthUser.uid) {
-      console.warn("[AuthContext] fetchUserData called with invalid currentAuthUser:", currentAuthUser);
-      setUserData(null);
-      return;
-    }
-    console.log("[AuthContext] Fetching user data for UID:", currentAuthUser.uid);
-    try {
-      const userDocSnap = await db.collection("users").doc(currentAuthUser.uid).get();
+  const _handleUserSession = useCallback(async (currentAuthUser: MockAuthUser | null) => {
+    if (currentAuthUser) {
+      try {
+        const userDocSnap = await db.collection("users").doc(currentAuthUser.uid).get();
+        if (userDocSnap.exists()) {
+          const fetchedProfile = userDocSnap.data() as UserProfile;
 
-      if (userDocSnap && typeof userDocSnap.exists === 'function' && userDocSnap.exists()) {
-        const fetchedData = userDocSnap.data();
-        console.log("[AuthContext] User data found:", fetchedData);
-        setUserData(fetchedData as UserProfile);
-      } else if (userDocSnap && typeof userDocSnap.exists === 'boolean' && userDocSnap.exists) {
-        const fetchedData = userDocSnap.data;
-        console.log("[AuthContext] User data found (mock boolean exists):", fetchedData);
-        setUserData(fetchedData as UserProfile);
+          if (fetchedProfile.disabled) {
+            toast({ title: "Access Denied", description: "Your account has been disabled. You have been logged out.", variant: "destructive" });
+            await auth.signOut(auth); // This will trigger onAuthStateChanged again with null
+            // State updates (setUser, setUserData, setAuthProcessLoading) will be handled by the re-entrant call to onAuthStateChanged.
+            return; 
+          } else {
+            setUser(currentAuthUser);
+            setUserData(fetchedProfile);
+          }
+        } else {
+          toast({ title: "Profile Error", description: "Your user profile was not found. Please contact support.", variant: "destructive" });
+          await auth.signOut(auth);
+          return;
+        }
+      } catch (error) {
+        console.error("[AuthContext] Error processing user session:", error);
+        toast({ title: "Session Error", description: "Could not verify your session. Please try logging in again.", variant: "destructive" });
+        // Attempt to sign out to clear corrupted state, if any user was present
+        if (auth.currentUser) { // Check if there's a Firebase auth user
+             await auth.signOut(auth);
+        } else { // If no Firebase user, just clean up local state
+            setUser(null);
+            setUserData(null);
+        }
+        // setAuthProcessLoading(false) will be handled by onAuthStateChanged after signOut or directly if no user.
+        // If already no user, and we hit this catch, ensure loading is false.
+        if(!currentAuthUser) setAuthProcessLoading(false);
+        return; // Ensure we don't proceed to setAuthProcessLoading(false) below if we returned or error occurred
       }
-      else {
-        console.warn(`[AuthContext] No profile found for UID: ${currentAuthUser.uid}.`);
-        setUserData(null);
-      }
-    } catch (error) {
-      console.error("[AuthContext] Error fetching user data:", error);
+    } else { // currentAuthUser is null
+      setUser(null);
       setUserData(null);
     }
-  };
-  
-  const refreshUserData = async () => {
-    if (user) {
-      console.log("[AuthContext] Refreshing user data for:", user.uid);
-      setAuthProcessLoading(true); 
-      await fetchUserData(user);
-      setAuthProcessLoading(false);
-    } else {
-      console.log("[AuthContext] refreshUserData called but no user is logged in.");
-    }
-  };
+    setAuthProcessLoading(false);
+  }, []); // Assuming toast, db, auth are stable and don't need to be in deps. If they were props or from other contexts, they might be.
 
   useEffect(() => {
     setAuthProcessLoading(true);
-    console.log("[AuthContext] Setting up onAuthStateChanged listener.");
     const unsubscribe = auth.onAuthStateChanged(async (currentAuthUser: MockAuthUser | null) => {
-      console.log("[AuthContext] onAuthStateChanged triggered. currentAuthUser:", currentAuthUser);
-      setUser(currentAuthUser); // Set user state
-      if (currentAuthUser) {
-        await fetchUserData(currentAuthUser); // Fetch and set user data
-      } else {
-        setUserData(null); // Clear user data if no auth user
-      }
-      setAuthProcessLoading(false); // Auth process complete, set loading to false
+      await _handleUserSession(currentAuthUser);
     });
     return () => {
-      console.log("[AuthContext] Unsubscribing from onAuthStateChanged.");
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, []);
+  }, [_handleUserSession]);
 
   const login = async (email: string, password: string): Promise<void> => {
     setAuthProcessLoading(true);
     try {
-      await auth.signInWithEmailAndPassword(auth, email, password); 
-      // onAuthStateChanged will set user, userData, and authProcessLoading to false.
-      // Toast is called after signIn is successful.
-      toast({
-        title: "Login Successful",
-        description: "Welcome back!",
-      });
-      console.log("[AuthContext] Login successful for:", email);
+      const userCredential = await auth.signInWithEmailAndPassword(auth, email, password);
+      const authUser = userCredential.user as MockAuthUser;
+
+      const userDocSnap = await db.collection("users").doc(authUser.uid).get();
+      if (userDocSnap.exists()) {
+        const userProfile = userDocSnap.data() as UserProfile;
+        if (userProfile.disabled) {
+          await auth.signOut(auth); 
+          toast({ title: "Login Failed", description: "Your account has been disabled by an administrator.", variant: "destructive" });
+          // setAuthProcessLoading(false); // onAuthStateChanged will handle this after signOut completes
+          throw new Error("Account disabled.");
+        }
+        // If not disabled, onAuthStateChanged will call _handleUserSession and set user/userData.
+        toast({ title: "Login Successful", description: "Welcome back!" });
+      } else {
+        await auth.signOut(auth);
+        toast({ title: "Login Failed", description: "User profile not found. Please contact support.", variant: "destructive" });
+        // setAuthProcessLoading(false);
+        throw new Error("User profile not found after login.");
+      }
     } catch (error) {
+      const knownError = error instanceof Error ? error.message : "";
+      if (knownError !== "Account disabled." && knownError !== "User profile not found after login.") {
+         toast({ title: "Login Failed", description: knownError || "Invalid credentials or network error.", variant: "destructive" });
+      }
+      setAuthProcessLoading(false); // Ensure loading is false if any part of login fails.
       console.error("[AuthContext] Login failed for:", email, error);
-      toast({
-        title: "Login Failed",
-        description: (error as Error).message || "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      });
-      setAuthProcessLoading(false); // Ensure loading is false on login error
       throw error;
     }
+    // Don't set authProcessLoading(false) here on success, onAuthStateChanged will handle it.
   };
 
   const register = async (name: string, email: string, password: string, role: UserRole): Promise<void> => {
@@ -123,6 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         role,
         createdAt: timestamp,
         updatedAt: timestamp,
+        disabled: false, // New users are not disabled by default
         ...(role === 'labour' ? {
           availability: true,
           skills: [],
@@ -141,11 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await db.collection("users").doc(newAuthUser.uid).set(newUserProfile);
       console.log("[AuthContext] Registration successful, mock profile created for:", email, newUserProfile);
       
-      // Manually set user and userData for immediate UI update, onAuthStateChanged will also run.
-      // setUser(newAuthUser); 
-      // setUserData(newUserProfile); 
-      // Relying on onAuthStateChanged to set the final state including authProcessLoading.
-
+      // onAuthStateChanged will call _handleUserSession for the new user.
       toast({
         title: "Registration Successful",
         description: "Welcome to LabourLink! Your account has been created.",
@@ -157,36 +160,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
-      setAuthProcessLoading(false); // Ensure loading is false on registration error
+      setAuthProcessLoading(false);
       throw error;
     }
+    // Don't set authProcessLoading(false) here on success, onAuthStateChanged will handle it.
   };
 
   const logout = async () => {
-    console.log("[AuthContext] Logging out user:", user?.email);
-    // Do not set authProcessLoading to true here.
-    // The app is already in a loaded state.
-    // onAuthStateChanged will handle setting user to null and authProcessLoading to false.
     try {
-      await auth.signOut(auth); 
-      // At this point, onAuthStateChanged should have already executed or will execute very soon,
-      // setting user to null and authProcessLoading to false.
-      toast({
-        title: "Logout Successful",
-        description: "You have been logged out.",
-      });
+      await auth.signOut(auth);
+      // onAuthStateChanged will set user to null and authProcessLoading to false.
+      toast({ title: "Logout Successful", description: "You have been logged out." });
     } catch (error) {
       console.error("[AuthContext] Logout error:", error);
-      toast({
-        title: "Logout Error",
-        description: String((error as Error).message || "Could not log out."),
-        variant: "destructive",
-      });
-      // If signOut itself errors, user might still be logged in, 
-      // so authProcessLoading should ideally be false from its previous loaded state.
-      // No explicit setAuthProcessLoading(false) here, as onAuthStateChanged is the source of truth.
+      toast({ title: "Logout Error", description: String((error as Error).message || "Could not log out."), variant: "destructive" });
+      // If signOut errors, state might be inconsistent, ensure loading is false
+      setAuthProcessLoading(false);
     }
   };
+
+  const refreshUserData = useCallback(async () => {
+    // Use the user from state, as auth.currentUser might not be reliable in mock or immediately after state changes
+    const currentUserFromState = user; 
+    if (currentUserFromState) {
+      console.log("[AuthContext] Refreshing user data for:", currentUserFromState.uid);
+      setAuthProcessLoading(true);
+      await _handleUserSession(currentUserFromState);
+    } else {
+      console.log("[AuthContext] refreshUserData called but no user is logged in via context state.");
+      await _handleUserSession(null); // This will ensure states are null and loading is false.
+    }
+  }, [user, _handleUserSession]);
 
   const isAdmin = userData?.role === "admin";
   const isLabour = userData?.role === "labour";
@@ -195,7 +199,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const contextValue = { 
     user, 
     userData, 
-    loading: authProcessLoading, // Expose internal loading state as 'loading'
+    loading: authProcessLoading,
     isAdmin, 
     isLabour, 
     isCustomer, 
@@ -213,5 +217,3 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export default AuthContext;
-
-    
